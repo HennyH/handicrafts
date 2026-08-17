@@ -1,0 +1,113 @@
+[
+  {
+    "id": "tote-bag",
+    "sku": "RH-TOTE-01",
+    "name": "Tote Bag",
+    "price": 60,
+    "currency": "AUD",
+    "category": "Bags",
+    "materials": "100% cotton",
+    "description": "A sturdy everyday tote.",
+    "image": "assets/products/tote/gallery_1.jpg",
+    "swatches": [
+      { "name": "Apothecary", "image": "assets/products/tote/color_3.jpg", "materials": "100% cotton" },
+      { "name": "Navy", "image": "assets/products/tote/color_1.jpg", "materials": "100% GOTS cotton" },
+      { "name": "St. Etienne", "image": "assets/products/tote/color_2.jpg", "materials": "45% GOTS cotton, 55% linen" }
+    ]
+  },
+  {
+    "id": "banneton",
+    "sku": "RH-BANN-02",
+    "name": "Banneton",
+    "price": 45,
+    "currency": "AUD",
+    "category": "Home",
+    "materials": "100% cotton",
+    "description": "This banneton will keep your dough nicely shaped and ventilated while it rests, helping you make delicious bread.",
+    "images": [
+      "assets/products/banneton/gallery_1.jpg",
+      "assets/products/banneton/gallery_2.jpg"
+    ]
+  },
+  {
+    "id": "fabric-hairband",
+    "sku": "RH-HAIR-03",
+    "name": "Fabric Hairband",
+    "price": 20,
+    "currency": "AUD",
+    "category": "Wearables",
+    "materials": "100% cotton fabric, elastic",
+    "description": "A comfy hairband with a stylish twist in the middle.",
+    "images": [
+      "assets/products/hairband/gallery_1.jpg",
+      "assets/products/hairband/gallery_2.jpg"
+    ],
+    "swatches": [
+      { "name": "Apothecary", "image": "assets/products/tote/color_3.jpg", "materials": "100% cotton" },
+      { "name": "St. Etienne", "image": "assets/products/tote/color_2.jpg", "materials": "45% GOTS cotton, 55% linen" }
+    ]
+  },
+  {
+    "id": "braided-bracelets",
+    "sku": "RH-BRAC-04",
+    "name": "Braided Bracelet",
+    "price": 10,
+    "currency": "AUD",
+    "category": "Wearables",
+    "materials": "100% wool",
+    "description": "Add a pop of colour with this simple and sturdy hand braided bracelet.",
+    "images": [
+      "assets/products/bracelet/gallery_1.jpg",
+      "assets/products/bracelet/gallery_2.jpg",
+      "assets/products/bracelet/gallery_3.jpg"
+    ],
+    "swatches": [
+      { "name": "Playful Pink", "image": "assets/products/bracelet/color_1.jpg" },
+      { "name": "Morose Maroon", "image": "assets/products/bracelet/color_2.jpg" },
+      { "name": "Lemon Yellow", "image": "assets/products/bracelet/color_3.jpg" },
+      { "name": "Midnight Blue", "image": "assets/products/bracelet/color_4.jpg" }
+    ]
+  },
+  {
+    "id": "knitted-beanie",
+    "sku": "RH-BEAN-05",
+    "name": "Knitted Beanies",
+    "price": 80,
+    "currency": "AUD",
+    "category": "Wearables",
+    "materials": "100% wool",
+    "description": "A warm, hand-knitted beanie, the rib knit makes this beanie strech for a comfy fit. Beanies are made to order, so expect a 4-5 week delay until dispatch.",
+    "images": [
+      "assets/products/beanie/gallery_2.jpg",
+      "assets/products/beanie/gallery_1.jpg",
+      "assets/products/beanie/gallery_3.jpg"
+    ],
+    "swatches": [
+      { "name": "Forest Green", "image": "assets/products/beanie/color_1.jpg" },
+      { "name": "Dusty White", "image": "assets/products/beanie/color_2.jpg" }
+    ]
+  },
+  {
+    "id": "handkerchiefs",
+    "sku": "RH-HANK-06",
+    "name": "Handkerchiefs",
+    "price": 14,
+    "currency": "AUD",
+    "category": "Home",
+    "materials": "100% cotton fabric, 100% cotton thread",
+    "description": "These cotton handkerchiefs have a rolled hem and come in a pack of three. Simple and effective, they are small enough to comfortably fit in pockets, and large enough to be useful!",
+    "image": "assets/products/handkerchiefs.svg",
+    "comingSoon": true
+  },
+  {
+    "id": "custom-tailoring",
+    "sku": "RH-CUST-07",
+    "name": "Clothing Alterations",
+    "price": null,
+    "currency": "AUD",
+    "category": "Services",
+    "materials": "Your fabric or mine — we'll figure it out together",
+    "description": "Whether it is making something new fit just right, or fixing something well loved, get in touch and let me know what you need.",
+    "image": "assets/products/custom-tailoring.svg"
+  }
+]

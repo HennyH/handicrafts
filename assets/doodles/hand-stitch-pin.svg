@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Place marker, drawn with a wobble so it reads hand-inked rather than UI -->
+  <path d="M50 8 C 32 8, 20 21, 21 38 C 22 55, 36 70, 50 92 C 64 70, 78 55, 79 38 C 80 21, 68 8, 50 8 Z"
+        stroke="#29343a" stroke-width="4" stroke-linejoin="round"/>
+  <!-- needle through the middle of it, on the diagonal -->
+  <path d="M36 50 L 66 26" stroke="#c99a4c" stroke-width="4" stroke-linecap="round"/>
+  <ellipse cx="65" cy="26" rx="4.5" ry="3" transform="rotate(-39 65 26)" stroke="#c99a4c" stroke-width="2.6"/>
+  <!-- thread: pulled through the eye and left trailing in running stitch -->
+  <path d="M62 24 C 54 20, 44 24, 40 32 C 36 41, 40 48, 36 51"
+        stroke="#c99a4c" stroke-width="2.8" stroke-linecap="round" stroke-dasharray="6 5"/>
+</svg>

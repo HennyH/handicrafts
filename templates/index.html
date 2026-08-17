@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Rachel's Handicrafts{% endblock %}
+{% block description %}<meta name="description" content="A small shop of items made with care and designed to contribute to a thoughtful lifestyle. Crafted for the person who wants to shop mindfully and build a home that nurtures their family, community and environment.">
+{% endblock %}
+{% block head %}
+<link rel="preload" href="data/products.json" as="fetch" crossorigin="anonymous">
+<link rel="preload" href="assets/art/chair.webp" as="image" fetchpriority="high">
+{% endblock %}
+{% block content %}
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <span class="badge badge--mustard">Made in Perth, WA</span>
+        <h1>Welcome!</h1>
+        <p class="lead">
+          Items made with care and designed to contribute to a thoughtful lifestyle. Crafted for the person who wants to shop mindfully and build a home that nurtures their family, community and environment.
+        </p>
+        <div class="hero__badges">
+          <a href="shop.html" class="btn btn--sage btn--big">Browse the shop →</a>
+        </div>
+      </div>
+    </div>
+    <img class="art-decor art-hero-chair" src="assets/art/chair.webp" data-orig="assets/art/chair.jpg" alt="" aria-hidden="true">
+  </section>
+
+  <div class="divider-wrap">
+    <img class="divider" src="assets/doodles/stitch-divider.svg" alt="">
+    <img class="divider__scissors" src="assets/doodles/scissors.svg" alt="" aria-hidden="true">
+  </div>
+
+  <section class="wrap confetti-band" id="story">
+    <h2 class="section-title">Why it's a bit different</h2>
+    <p class="section-sub">Nothing here comes off a factory line. Here's what "local and sustainable" actually means, in practice.</p>
+
+    <div class="about-block">
+      <img src="assets/art/bernina.webp" data-orig="assets/art/bernina.jpg" alt="A hand-drawn illustration of a Bernina 930 Record sewing machine">
+      <div>
+        <!-- <h3>Hi, I'm Rachel.</h3> -->
+        <p>I make small batches of home crafted goods, here - in Perth, Western Australia. With my Bernina 930 Record and other crafting tools I make everything from tote bags to knitted beanies.</p>
+        <p>I keep things small-batch because that's what one person, working by hand, can actually do well. If something you love isn't in stock, just ask — I can usually make more.</p>
+      </div>
+    </div>
+
+    <div class="feature-row">
+      <div class="feature">
+        <img src="assets/doodles/fabric-offcuts.svg" alt="">
+        <h3>Deadstock &amp; offcuts first</h3>
+        <p>I source deadstock and leftover fabric where I can, so good cloth doesn't end up in landfill.</p>
+      </div>
+      <div class="feature">
+        <img src="assets/doodles/hand-stitch-pin.svg" alt="">
+        <h3>Made locally, by hand</h3>
+        <p>Using hand picked textiles - every single seam is sewn by me here in Perth.</p>
+      </div>
+      <div class="feature">
+        <img src="assets/doodles/heart-stitch.svg" alt="">
+        <h3>Made to last</h3>
+        <p>I'd rather make something you keep for years than something disposable. Simple, sturdy construction, always.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 class="section-title">Some of my favourite craftings</h2>
+    <p class="section-sub">The full catalogue lives on the shop page.</p>
+    <div class="grid grid--masonry" id="featured-grid"></div>
+    <div style="text-align:center; margin-top:-20px;">
+      <a href="shop.html" class="btn btn--sage">See the whole shop →</a>
+    </div>
+  </section>
+
+  <section class="wrap" style="text-align:center; margin: 50px auto 70px;">
+    <p class="section-sub" style="margin-bottom:10px;">Questions about a piece, custom requests - feel free to get in contact.</p>
+    <a href="mailto:hello@rachelshandicrafts.com" class="btn btn--accent btn--big btn--with-icon">
+      <img class="btn__icon" src="assets/doodles/envelope-seal.svg" alt="" aria-hidden="true">
+      hello@rachelshandicrafts.com
+    </a>
+  </section>
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.imagesloaded/5.0.0/imagesloaded.pkgd.min.js"></script>
+<script src="js/products.js?v=16"></script>
+<script src="js/cart.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
+<script>initProductGrid("#featured-grid", { limit: 3 });</script>
+{% endblock %}

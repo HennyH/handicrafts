@@ -1,0 +1,14 @@
+.DS_Store
+Thumbs.db
+node_modules/
+*.log
+.vscode/
+
+# Raw scanned artwork (full-resolution originals) — the optimised, web-sized
+# versions actually used by the site live in assets/art/ and are tracked.
+/art/
+
+# Build output. The site is generated from templates/ by `cargo run`; CI does
+# the same and publishes dist/ to Pages, so neither is ever committed.
+/dist/
+/target/

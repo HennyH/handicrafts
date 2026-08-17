@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 104 80" fill="none">
+  <g transform="rotate(-3 52 40)">
+    <!-- envelope body, drawn with a slight wobble so it matches the other doodles -->
+    <path d="M8 16 C 30 13, 62 13, 96 15 C 98 32, 98 52, 95 68 C 64 71, 34 71, 9 68 C 6 52, 6 32, 8 16 Z"
+          fill="#ffffff" stroke="#29343a" stroke-width="4" stroke-linejoin="round"/>
+    <!-- the flap crease -->
+    <path d="M9 18 C 26 34, 40 44, 52 45 C 64 44, 79 33, 95 17"
+          stroke="#29343a" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- back folds, kept light so the seal stays the busiest thing on the icon -->
+    <path d="M10 66 C 24 55, 32 49, 36 46" stroke="#29343a" stroke-width="2.6" stroke-linecap="round" opacity="0.55"/>
+    <path d="M94 66 C 80 55, 72 49, 68 46" stroke="#29343a" stroke-width="2.6" stroke-linecap="round" opacity="0.55"/>
+  </g>
+  <!-- wax seal: wobbly blob rather than a circle, with a stitched cross pressed into it -->
+  <g transform="rotate(8 74 56)">
+    <path d="M74 38 C 84 37, 92 45, 92 55 C 92 66, 84 74, 73 73 C 63 72, 56 65, 56 55 C 56 45, 64 39, 74 38 Z"
+          fill="#d94436" stroke="#a82e26" stroke-width="3.4" stroke-linejoin="round"/>
+    <path d="M74 47 L 74 63 M 66 55 L 82 55" stroke="#f6e2d5" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="5 4"/>
+  </g>
+</svg>

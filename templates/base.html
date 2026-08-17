@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}{% endblock %}</title>
+{% block description %}{% endblock %}
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.fontshare.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,500;0,600;0,700;0,800;1,600&family=Karla:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=stardom&display=swap">
+<link rel="stylesheet" href="css/style.css?v={{ css_v }}">
+<script>
+/* Once the full-res paper texture has been cached (flag set by bg-swap.js),
+   apply it here — before first paint — rather than letting bg-swap.js swap it
+   in after load. Inline and synchronous on purpose: a deferred script runs too
+   late and the upgrade shows up as a flash on every navigation. */
+try {
+  if (localStorage.getItem("rh_paper_hires")) {
+    document.documentElement.style.setProperty(
+      "--paper-bg", 'url("/assets/art/paper_bg_100.webp")');
+  }
+} catch (e) {}
+</script>
+<script defer src="js/bg-swap.js"></script>
+{% block head %}{% endblock %}
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a href="index.html" class="brand">
+      <img src="assets/art/cropped_logo.webp" width="176" height="219" alt="">
+      <span class="brand__name">Rachel's  Handicrafts</span>
+    </a>
+    <button class="nav__toggle" aria-label="Toggle menu" aria-expanded="false">☰<span class="cart-count" data-cart-count aria-hidden="true">0</span></button>
+    <ul class="nav__menu">
+      <li><a href="index.html">Home</a></li>
+      <li><a href="shop.html">Shop</a></li>
+      <li><a href="cart.html" class="cart-link">Cart <span class="cart-count" data-cart-count>0</span></a></li>
+    </ul>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div>
+      <span class="brand__name script">Rachel's Handicrafts</span>
+      <p>Perth, Western Australia</p>
+      <p>hello@rachelshandicrafts.com</p>
+    </div>
+    <div>
+      <p>© <span data-year></span> Rachel's Handicrafts</p>
+      <p>Made by hand (with some assistance from my Bernina).</p>
+    </div>
+  </div>
+  <img class="art-decor art-footer" src="assets/art/leaf.webp" data-orig="assets/art/leaf.jpg" alt="" aria-hidden="true">
+</footer>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,363 @@
+/* Rachel's Handicrafts — one stylesheet. Fonts load via <link> in each page's <head>, not @import: an @import is invisible to the preload scanner, so
+   fonts wouldn't start downloading until this whole file had been fetched and parsed. */
+
+:root {
+  /* Paper grain. Starts on the small ~22KB tile so it's there at first paint; bg-swap.js upgrades to the full scan. Anything painting it must also set
+   background-color: var(--paper), or there's nothing to paint until the image lands and it flashes white. --paper-tile = grain density. */
+  --paper-bg: url("/assets/art/paper_bg_40.webp");
+  --paper-tile: 400px;
+  --paper: #faf6ee;  --paper-dark: #efe6d3;  --white: #ffffff;
+  --ink: #29343a;    --ink-soft: #6c7478;
+  --navy: #3b82e6;   --navy-deep: #2563c9;
+  --gold: #c99a4c;   --gold-deep: #a67f38;
+  --sage: #7c9473;   --clay: #b5654a;
+  /* Stardom ships weight 400 only — it renders at 400 whatever you declare. */
+  --font-display: "Stardom", "Libre Franklin", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Karla", "Helvetica Neue", Arial, sans-serif;
+  --radius-wobble: 255px 15px 225px 15px / 15px 225px 15px 255px;
+  --shadow-sketch: 4px 4px 0 rgba(41, 52, 58, 0.12);
+  --shadow-soft: 0 10px 24px rgba(28, 74, 84, 0.12);
+  --ease-natural: cubic-bezier(0.34, 1.45, 0.4, 1);
+  --paper-fill: var(--paper) var(--paper-bg) repeat center / var(--paper-tile) var(--paper-tile);
+}
+
+* { box-sizing: border-box; }
+/* Form controls are the only things that don't inherit the body font, so this one line replaces a font-family declaration on every button and input. */
+button, input, textarea, select { font-family: inherit; }
+
+/* scrollbar-gutter: pages differ in height, and without a reserved gutter the centred layout shifts sideways as you move between them. */
+html { scroll-behavior: smooth; scrollbar-gutter: stable; }
+
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--paper-fill);
+  color: var(--ink); font-family: var(--font-body); line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+main { flex: 1 0 auto; }
+
+h1, h2, h3 { font-family: var(--font-display); color: var(--ink); line-height: 1.2; font-weight: 600; }
+.script { font-family: var(--font-display); font-style: italic; font-weight: 600; }
+a { color: var(--navy-deep); }
+img { max-width: 100%; display: block; }
+
+/* .wrap must have an explicit width: a flex item with `margin: 0 auto` sizes to its content, and a Masonry grid's children are absolutely positioned, so
+   its content width would collapse to zero. */
+.wrap { width: 100%; max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+/* scanned artwork used as background decor */
+/* multiply drops each scan's own paper tone (close to --paper) so only the ink survives; the mask fades the rectangular edges so it dissolves into the
+   page. */
+.art-decor {
+  position: absolute; display: block; pointer-events: none; user-select: none;
+  mix-blend-mode: multiply; z-index: 0;
+  -webkit-mask-image: radial-gradient(ellipse 62% 62% at 50% 50%, black 50%, transparent 100%);
+  mask-image: radial-gradient(ellipse 62% 62% at 50% 50%, black 50%, transparent 100%);
+}
+.art-hero-chair { width: 300px; right: 180px; bottom: -20px; opacity: 0.6; transform: rotate(-5deg); }
+.art-footer { width: 220px; right: 24px; bottom: -30px; opacity: 0.42; transform: rotate(4deg); }
+@media (max-width: 700px) { .art-decor { display: none; } }
+
+/* header */
+/* sticky, so it paints over the page instead of letting body's background show through — it needs its own pre-load colour fallback. */
+.site-header { padding: 4px 0; border-bottom: 2px solid var(--ink); background: var(--paper-fill); position: sticky; top: 0; z-index: 20; }
+.site-header .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); }
+/* the <img> carries width/height attrs so space is reserved before load; height:auto stops those attrs squashing it to its intrinsic height. */
+.brand img { width: 58px; height: auto; }
+.brand__name { font-family: var(--font-display); font-style: italic; font-weight: 700; font-size: 1.7rem; }
+
+/* Above the breakpoint the wordmark detaches to the wrap's true midpoint, so it reads as centred on the header regardless of how wide the nav gets —
+   without dragging the logo off the left. */
+@media (min-width: 801px) {
+.site-header .wrap { position: relative; }
+.site-header .brand__name { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
+}
+@media (max-width: 800px) { .site-header .brand__name { display: none; } }
+
+/* iOS Safari styles a bare <button> like a UIButton: the label takes the system accent (blue), and `color` alone won't override it. */
+.nav__toggle {
+  display: none; position: relative; appearance: none; -webkit-appearance: none;
+  background: none; color: var(--ink); -webkit-text-fill-color: var(--ink);
+  border: 2px solid var(--ink); border-radius: 8px;
+  font-size: 1.3rem; line-height: 1;
+  padding: 4px 10px; cursor: pointer;
+}
+.nav__menu {
+  display: flex; align-items: center; gap: 22px; list-style: none; margin: 0; padding: 0;
+  font-size: 0.88rem; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.nav__menu a { text-decoration: none; color: var(--ink); position: relative; transition: color 0.2s ease; }
+.nav__menu a:hover { color: var(--navy-deep); }
+.nav__menu a.is-active { font-weight: 700; }
+.cart-link { display: inline-flex; align-items: center; gap: 6px; }
+.cart-count {
+  display: none; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; padding: 0 5px; border-radius: 50%;
+  background: var(--gold); color: var(--ink);
+  font-size: 0.75rem; font-weight: 700;
+}
+/* Same badge on the closed hamburger — on mobile the nav (and its own badge) is hidden until you open the menu. cart.js sets display inline, which would
+   beat a media query, but .nav__toggle is display:none above 800px so the badge disappears with its parent. Ringed in paper to read as a chip. */
+.nav__toggle .cart-count { position: absolute; top: -9px; right: -9px; border: 2px solid var(--paper); }
+
+/* hero */
+.hero { padding: 30px 0 26px; position: relative; overflow: hidden; }
+.hero .wrap { position: relative; z-index: 1; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 40px; align-items: center; }
+.hero h1 { font-family: var(--font-display); font-weight: 700; font-size: 3.1rem; letter-spacing: -0.01em; margin: 0 0 10px; }
+.hero p.lead { font-size: 1.15rem; color: var(--ink-soft); max-width: 46ch; }
+.hero .badge { margin-bottom: 14px; }
+.hero__badges { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.confetti-band { position: relative; overflow: hidden; }
+.confetti-band > *:not(.art-decor) { position: relative; z-index: 1; }
+
+/* buttons */
+.btn {
+  font-weight: 500; font-size: 1rem; letter-spacing: 0.02em;
+  padding: 10px 22px; display: inline-block; text-decoration: none; cursor: pointer;
+  border: 2px solid var(--ink); border-radius: var(--radius-wobble);
+  background: var(--white); color: var(--ink);
+  box-shadow: 3px 3px 0 rgba(41, 52, 58, 0.16);
+  transition: transform 0.4s var(--ease-natural), box-shadow 0.4s var(--ease-natural);
+}
+.btn:hover { transform: translate(-2px, -3px) rotate(-1.5deg); box-shadow: 5px 6px 0 rgba(41, 52, 58, 0.14); }
+.btn:active { transform: translate(0, 0) rotate(0deg); transition: transform 0.15s ease; }
+/* :hover still fires on a disabled button, so the lift must be cancelled explicitly or a "Coming soon!" card still looks clickable. */
+.btn[disabled] { opacity: 0.65; cursor: not-allowed; box-shadow: none; background: #e6e2da; color: #8c857b; border-color: #c4bdb1; }
+.btn[disabled]:hover { transform: none; box-shadow: none; }
+.btn--accent { background: var(--navy); color: var(--white); border-color: var(--navy-deep); }
+.btn--sage { background: var(--sage); color: var(--white); border-color: var(--sage); }
+.btn--ghost { background: transparent; }
+.btn--tiny { padding: 2px 10px; font-size: 1rem; box-shadow: none; }
+.btn--big { font-size: 1.25rem; padding: 14px 30px; }
+.btn--block { display: block; width: 100%; text-align: center; }
+.btn--with-icon { display: inline-flex; align-items: center; gap: 10px; }
+/* the envelope's wax seal hangs below its body, so its visual centre sits lower than its box centre — nudge up a hair. */
+.btn__icon { width: 1.7em; height: auto; flex-shrink: 0; margin-top: -0.12em; }
+/* An email address is one unbreakable token and would push past the gutter. */
+@media (max-width: 520px) {
+.btn--with-icon { font-size: 0.98rem; padding-left: 16px; padding-right: 16px; gap: 8px; }
+.btn--with-icon .btn__icon { width: 1.5em; }
+}
+
+/* badges */
+.badge {
+  font-weight: 500; font-size: 0.72rem;
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 4px 12px; border-radius: 999px; border: 1.5px dashed currentColor; display: inline-block;
+}
+.badge--mustard { color: var(--gold); border-style: solid; border-color: var(--gold); }
+
+/* section headers */
+.section-title { font-family: var(--font-display); font-style: italic; font-weight: 600; font-size: 2.3rem; text-align: center; margin: 0 0 6px; }
+.section-sub { text-align: center; color: var(--ink-soft); max-width: 60ch; margin: 0 auto 34px; }
+.divider-wrap { position: relative; margin: 8px 0 32px; }
+.divider { display: block; width: 100%; height: 24px; margin: 0; }
+/* masks the stitch line under the icon so it reads as "cut" rather than overlapped — textured to match the page so it isn't a flat-colour patch. */
+.divider__scissors {
+  position: absolute; top: 50%; left: 50%; width: 64px;
+  transform: translate(-50%, -50%) rotate(-4deg);
+  background: var(--paper-fill); padding: 0 6px;
+}
+
+/* cards / grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 28px; margin: 30px 0 60px; }
+/* Cards vary a lot in height, so layout is done by Masonry (js/products.js). All this stylesheet owns is the column width, read off .grid-sizer. Masonry
+   manages only the horizontal gutter; the row gap is the card's own margin. */
+.grid--masonry { display: block; position: relative; margin: 30px 0 40px; }
+.grid--masonry .grid-sizer, .grid--masonry > .card { width: 100%; }
+.grid--masonry > .card { margin-bottom: 28px; }
+@media (min-width: 560px) { .grid--masonry .grid-sizer, .grid--masonry > .card { width: calc((100% - 28px) / 2); } }
+@media (min-width: 800px) { .grid--masonry .grid-sizer, .grid--masonry > .card { width: calc((100% - 56px) / 3); } }
+
+/* The site's one boxed surface — cards and page panels are the same box. */
+.card, .cart-panel, .checkout-panel { background: var(--white); border: 2px solid var(--ink); border-radius: 18px; box-shadow: var(--shadow-sketch); }
+.card { padding: 18px; position: relative; transition: transform 0.45s var(--ease-natural), box-shadow 0.45s var(--ease-natural); }
+.cart-panel, .checkout-panel { padding: 30px; box-shadow: var(--shadow-sketch), var(--shadow-soft); max-width: 780px; margin: 30px auto; }
+/* Irregular angles (not a strict alternation) so a row reads as hand-placed. */
+.tilt-1 { transform: rotate(-1.6deg); }
+.tilt-2 { transform: rotate(1.1deg); }
+.tilt-3 { transform: rotate(-0.7deg); }
+.tilt-4 { transform: rotate(1.8deg); }
+.tilt-5 { transform: rotate(-1.1deg); }
+.card:hover { transform: rotate(0deg) translateY(-4px); box-shadow: var(--shadow-sketch), var(--shadow-soft); }
+/* Each tilt makes the card its own stacking context, so an open swatch dropdown can't out-rank a sibling card by z-index alone. Kept under the header's
+   20 so the header still passes over it. */
+.card.swatch-open { z-index: 10; }
+
+/* Every photo is framed the same way (display:block from the global img rule). */
+.product-card__img, .lightbox__img, .cart-row__img { border: 2px solid var(--ink); border-radius: 10px; }
+.product-card__img { width: 100%; }
+.product-card__name { margin: 6px 0 4px; font-size: 1.3rem; }
+.product-card__desc { font-size: 0.92rem; color: var(--ink-soft); margin: 0 0 8px; }
+.product-card__materials { font-size: 0.82rem; color: var(--ink-soft); margin: 0 0 12px; }
+.product-card__footer { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; }
+.product-card__price { font-weight: 600; font-size: 1.15rem; }
+/* Flags products whose composition changes with the chosen fabric. */
+.materials-flag {
+  display: inline-block; font-style: italic; font-weight: bold; padding: 1px 2px;
+  font-size: 0.72rem; line-height: 1.5;
+  white-space: nowrap; color: var(--navy-deep); cursor: help;
+}
+
+/* product photo gallery */
+/* The gap under the photo lives on the figure, not the <img> — an img margin would collapse out and take the absolute controls' reference box with it. */
+.product-gallery { position: relative; margin: 0 0 12px; }
+/* Round ink control, shared with the lightbox close button. */
+.gallery-btn, .lightbox__close {
+  position: absolute; display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; padding: 0;
+  font-size: 1.25rem; line-height: 1;
+  color: var(--ink); background: var(--paper);
+  border: 2px solid var(--ink); border-radius: 50%;
+  box-shadow: 2px 2px 0 rgba(41, 52, 58, 0.18); cursor: pointer;
+}
+.gallery-btn { opacity: 0; transition: opacity 0.2s ease, transform 0.2s var(--ease-natural); }
+.product-gallery:hover .gallery-btn, .gallery-btn:focus-visible { opacity: 1; }
+.gallery-btn:hover { transform: scale(1.08); }
+.gallery-btn:focus-visible, .lightbox__close:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+.gallery-btn--prev { top: 50%; left: 8px; margin-top: -23px; }
+.gallery-btn--next { top: 50%; right: 8px; margin-top: -23px; }
+.gallery-btn--expand { top: 8px; right: 8px; font-size: 1rem; }
+.gallery-count {
+  position: absolute; left: 8px; bottom: 8px; padding: 1px 9px;
+  font-size: 0.72rem;
+  color: var(--ink); background: var(--paper);
+  border: 1.5px solid var(--ink); border-radius: 999px;
+}
+/* no hover on touch, so the controls stay visible there */
+@media (hover: none) { .gallery-btn { opacity: 1; } }
+
+/* image lightbox */
+.lightbox { padding: 0; border: none; background: transparent; max-width: 100vw; max-height: 100vh; overflow: visible; }
+.lightbox::backdrop { background: rgba(28, 36, 41, 0.72); }
+.lightbox__inner { position: relative; padding: 14px; background: var(--paper); border: 2px solid var(--ink); border-radius: 16px; box-shadow: var(--shadow-sketch), var(--shadow-soft); }
+.lightbox__img { max-width: min(86vw, 900px); max-height: 78vh; width: auto; }
+/* no card hover here, so the arrows show full-time */
+.lightbox .gallery-btn { opacity: 1; }
+.lightbox .gallery-btn--prev { left: 24px; }
+.lightbox .gallery-btn--next { right: 24px; }
+.lightbox--single .gallery-btn { display: none; }
+.lightbox__close { top: -14px; right: -14px; width: 36px; height: 36px; font-size: 1rem; }
+.lightbox__caption { margin: 10px 2px 2px; font-size: 0.88rem; color: var(--ink-soft); text-align: center; }
+.lightbox__count { color: var(--ink-soft); opacity: 0.8; }
+
+/* fabric swatch picker */
+/* The expanded grid overlays the card rather than pushing its content down — that reflow used to shift "Add to cart" out from under the pointer. */
+.swatch-picker { position: relative; margin: 0 0 12px; }
+.swatch-picker__summary {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.82rem; color: var(--ink); cursor: pointer; padding: 4px 10px;
+  border: 1.5px dashed var(--ink-soft); border-radius: 999px; list-style: none; user-select: none;
+}
+.swatch-picker__summary::-webkit-details-marker { display: none; }
+.swatch-picker__chevron { font-size: 0.75rem; color: var(--ink-soft); transition: transform 0.2s ease; }
+.swatch-picker[open] .swatch-picker__chevron { transform: rotate(180deg); }
+.swatch-picker__grid {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 5;
+  scroll-margin: 32px; display: flex; flex-wrap: wrap; gap: 12px; margin-top: 0; padding: 12px;
+  background: var(--paper); border: 1.5px solid var(--ink); border-radius: 12px;
+  box-shadow: var(--shadow-sketch), var(--shadow-soft);
+}
+/* The fabric chip, in the picker and again on each cart row. Swatches set background-image inline (swatchFillStyle in js/products.js), so the fill needs
+   clipping to the rounded corners. */
+.swatch-dot, .cart-row__swatch-dot { display: inline-block; border: 1.5px solid var(--ink); border-radius: 3px; background-repeat: no-repeat; }
+.swatch-dot { width: 14px; height: 14px; flex-shrink: 0; overflow: hidden; }
+.swatch-option { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; width: 64px; cursor: pointer; font-size: 0.68rem; color: var(--ink-soft); text-align: center; }
+.swatch-option input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.swatch-option__color { width: 56px; height: 56px; border-radius: 8px; border: 2px solid var(--ink); box-shadow: var(--shadow-sketch); transition: transform 0.2s var(--ease-natural); background-repeat: no-repeat; overflow: hidden; }
+.swatch-option input:checked + .swatch-option__color { transform: scale(1.08); outline: 2px solid var(--navy); outline-offset: 2px; }
+.swatch-option input:focus-visible + .swatch-option__color { outline: 2px solid var(--navy); outline-offset: 2px; }
+.swatch-option__name { line-height: 1.2; }
+
+/* about / feature blocks */
+/* auto-fit rather than a fixed column count: these reflow on their own content width, so they need no breakpoint of their own. */
+.feature-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 26px; margin: 40px 0; }
+.feature { text-align: center; padding: 20px; }
+.feature img { width: 64px; margin: 0 auto 12px; }
+.feature h3 { margin: 0 0 6px; font-size: 1.3rem; }
+.feature p { color: var(--ink-soft); font-size: 0.92rem; }
+.about-block { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 40px; align-items: center; margin: 50px 0; }
+.about-block img { border: 2px solid var(--ink); border-radius: var(--radius-wobble); box-shadow: var(--shadow-sketch), var(--shadow-soft); }
+.page-header { position: relative; overflow: hidden; padding-bottom: 6px; }
+.page-header > *:not(.art-decor) { position: relative; z-index: 1; }
+
+/* footer */
+.site-footer { border-top: 2px solid var(--ink); padding: 40px 0 30px; background: var(--paper-dark); position: relative; overflow: hidden; }
+.site-footer .wrap { position: relative; z-index: 1; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 20px; }
+.site-footer p { margin: 4px 0; color: var(--ink-soft); font-size: 0.9rem; }
+
+/* cart page */
+.cart-row { display: grid; grid-template-columns: 70px 1fr auto auto 30px; align-items: center; gap: 16px; padding: 16px 0; border-bottom: 1.5px dashed #e3dac6; }
+.cart-row__img { width: 64px; height: 64px; object-fit: cover; }
+.cart-row__info { min-width: 0; }
+.cart-row__info h3 { margin: 0 0 4px; font-size: 1.1rem; }
+.cart-row__price { font-size: 0.82rem; color: var(--ink-soft); margin: 0; overflow-wrap: break-word; }
+.cart-row__swatch-dot { width: 10px; height: 10px; vertical-align: -1px; margin-right: 3px; }
+.cart-row__materials { display: block; font-size: 0.76rem; font-style: italic; color: var(--ink-soft); margin-top: 2px; }
+.cart-row__qty { display: flex; align-items: center; gap: 6px; }
+.cart-row__qty input { width: 44px; text-align: center; border: 1.5px solid var(--ink); border-radius: 8px; padding: 4px; }
+.cart-row__total { font-weight: 600; font-size: 1.1rem; min-width: 70px; text-align: right; }
+.cart-row__remove { background: none; border: none; color: var(--clay); font-size: 1.1rem; cursor: pointer; transition: transform 0.3s var(--ease-natural); }
+.cart-row__remove:hover { transform: scale(1.15) rotate(-6deg); }
+.summary-line { display: flex; justify-content: space-between; padding: 6px 0; font-size: 1rem; }
+.summary-line--muted { color: var(--ink-soft); font-size: 0.85rem; }
+.summary-line--total { font-weight: 600; font-size: 1.4rem; border-top: 2px solid var(--ink); margin-top: 8px; padding-top: 12px; }
+
+/* forms */
+/* 280px min keeps this to the two columns it's designed for inside the 716px panel — 220px would let a third squeeze in. */
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.form-grid .full { grid-column: 1 / -1; }
+.field { margin-bottom: 18px; }
+label { display: block; font-weight: 500; font-size: 1rem; margin-bottom: 6px; }
+input[type="text"], input[type="email"], input[type="tel"], textarea {
+  width: 100%; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 10px;
+  font-size: 0.95rem; background: var(--paper);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input[type="text"]:focus, input[type="email"]:focus, input[type="tel"]:focus, textarea:focus {
+  outline: none; border-color: var(--navy); box-shadow: 0 0 0 3px rgba(28, 74, 84, 0.18);
+}
+textarea { resize: vertical; min-height: 80px; }
+.checkout-items { list-style: none; padding: 0; margin: 0 0 10px; }
+.checkout-items li { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.95rem; }
+.confirm-panel { text-align: center; }
+.confirm-panel img { width: 70px; margin: 0 auto 16px; animation: natural-sway 5s ease-in-out infinite; }
+.confirm-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 20px; }
+.error-note { color: var(--clay); }
+.empty-state { text-align: center; padding: 50px 20px; color: var(--ink-soft); }
+.empty-state img { width: 80px; margin: 0 auto 16px; opacity: 0.7; }
+
+/* motion */
+/* Uneven keyframe spacing reads as organic rather than a metronome. */
+@keyframes natural-sway {
+0% { transform: rotate(0deg); }
+22% { transform: rotate(-3deg); }
+48% { transform: rotate(2deg); }
+71% { transform: rotate(-1.5deg); }
+100% { transform: rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) { .brand img, .confirm-panel img { animation: none; } }
+
+/* responsive */
+@media (max-width: 800px) {
+.hero .wrap { grid-template-columns: 1fr; }
+.nav__toggle { display: inline-block; }
+  /* opaque overlay, or page content shows through the open menu */
+  .nav__menu {
+    display: none; position: absolute; top: 100%; left: 0; right: 0;
+    background: var(--paper-fill);
+    border-bottom: 2px solid var(--ink);
+    flex-direction: column; align-items: flex-start; padding: 16px 24px; gap: 14px;
+  }
+.nav__menu.is-open { display: flex; }
+  /* The qty stepper needs real width; squeezed beside the total it overflowed the screen and dragged the price with it. Give it its own row. */
+.cart-row { grid-template-columns: 56px 1fr; grid-template-areas: "img info" "img qty" "total total" "remove remove"; row-gap: 10px; }
+.cart-row__img { grid-area: img; }
+.cart-row__info { grid-area: info; min-width: 0; }
+.cart-row__price { white-space: normal; overflow-wrap: break-word; }
+.cart-row__qty { grid-area: qty; }
+.cart-row__total { grid-area: total; min-width: 0; text-align: right; }
+.cart-row__remove { grid-area: remove; justify-self: start; }
+}

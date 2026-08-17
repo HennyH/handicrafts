@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Your Cart — Rachel's Handicrafts{% endblock %}
+{% block content %}
+<main class="wrap">
+  <h1 class="section-title" style="margin-top:40px;">Your Cart</h1>
+
+  <div class="cart-panel">
+    <div id="cart-empty" class="empty-state" style="display:none;">
+      <img src="assets/doodles/heart-stitch.svg" alt="">
+      <p>Your cart's empty. Go find something lovely on the <a href="shop.html">shop page</a>.</p>
+    </div>
+    <div id="cart-contents"></div>
+    <div id="cart-summary" style="margin-top:20px;"></div>
+    <a id="go-to-checkout" href="checkout.html" class="btn btn--accent btn--block" style="margin-top:24px; display:none;">Proceed to checkout</a>
+  </div>
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="js/products.js?v=16"></script>
+<script src="js/cart.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
+<script src="js/cart-page.js?v=5"></script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Shop — Rachel's Handicrafts{% endblock %}
+{% block head %}
+<link rel="preload" href="data/products.json" as="fetch" crossorigin="anonymous">
+{% endblock %}
+{% block content %}
+<main class="wrap">
+  <div class="page-header">
+    <h1 class="section-title" style="margin-top:40px;">The Shop</h1>
+  </div>
+  <p class="section-sub">Everything here is cut and sewn by hand in small batches. If something's not listed the way you'd like it, just ask — I can usually make more.</p>
+  <div class="grid grid--masonry" id="product-grid"></div>
+</main>
+{% endblock %}
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/masonry/4.2.2/masonry.pkgd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.imagesloaded/5.0.0/imagesloaded.pkgd.min.js"></script>
+<script src="js/products.js?v=16"></script>
+<script src="js/cart.js?v=3"></script>
+<script src="js/main.js?v=3"></script>
+<script>initProductGrid("#product-grid");</script>
+{% endblock %}

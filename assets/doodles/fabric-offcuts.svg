@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Two folded offcuts stacked, drawn with a hand-drawn sag so the pile reads
+       as cloth rather than boxes. Kept to two so the icon stays as light on the
+       page as the leaf and heart it sits beside. -->
+  <path d="M17 44 C 34 37, 63 36, 83 42 C 85 48, 85 53, 83 58 C 63 64, 34 65, 17 58 C 15 53, 15 49, 17 44 Z"
+        stroke="#29343a" stroke-width="3.6" stroke-linejoin="round"/>
+  <!-- front piece: pinked (zigzag) cut edge along the bottom -->
+  <path d="M20 63 C 38 57, 64 56, 82 62 L 82 74 L 69 82 L 56 74 L 43 82 L 30 74 L 20 80 L 20 63"
+        stroke="#7c9473" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- the offcut comes back round: a saved-again loop over the pile -->
+  <path d="M76 28 C 68 18, 46 14, 32 21 C 24 25, 21 31, 23 37"
+        stroke="#7c9473" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M16 31 L 23 38 L 31 34" stroke="#7c9473" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
