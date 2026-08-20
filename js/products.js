@@ -73,6 +73,48 @@ function swatchFillStyle(swatch) {
   return `${base}background-image:url('${swatch.image}');background-image:image-set(url('${webp}') type('image/webp'), url('${swatch.image}') type('image/jpeg'));${sizing}`;
 }
 
+/* Warm every photo a card can show, so stepping a carousel is instant rather
+   than starting a download at the moment of the click — which on a phone is
+   the difference between "next" and a second or two of nothing.
+
+   Only photo [0] of each product is on the page initially; the rest, and the
+   swatch images inside the collapsed picker, are never requested until
+   something reveals them. This fetches them in the background once the page
+   itself has finished loading, so it competes with nothing the visitor is
+   waiting on. Requests go out through <img> rather than fetch() so they land
+   in the normal image cache, which is what the gallery reads from later. */
+const PRELOADED = [];
+
+function preloadProductImages(products) {
+  // Don't spend someone's data plan for them: Save-Data is an explicit ask,
+  // and on 2g the preload would contend with the photos actually on screen.
+  const net = navigator.connection;
+  if (net && (net.saveData || /(^|-)2g$/.test(net.effectiveType || ""))) return;
+
+  const urls = new Set();
+  products.forEach((p) => {
+    const photos = p.images || (p.image ? [p.image] : []);
+    photos.slice(1).forEach((src) => urls.add(toWebp(src)));
+    (p.swatches || []).forEach((s) => s.image && urls.add(toWebp(s.image)));
+  });
+  if (urls.size === 0) return;
+
+  // Hold the references. Left to be garbage-collected, the bytes stay in the
+  // HTTP cache but the decoded image doesn't, so the first real use spends a
+  // revalidation round-trip (a 304) and a decode — small on wifi, exactly the
+  // delay you feel on a phone. Keeping them alive makes that use a memory hit.
+  const warm = () => urls.forEach((url) => {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    PRELOADED.push(img);
+  });
+  const whenIdle = () =>
+    "requestIdleCallback" in window ? requestIdleCallback(warm, { timeout: 2000 }) : setTimeout(warm, 300);
+  if (document.readyState === "complete") whenIdle();
+  else window.addEventListener("load", whenIdle, { once: true });
+}
+
 function findSwatch(product, colorName) {
   if (!colorName || !product.swatches) return null;
   return product.swatches.find((s) => s.name === colorName) || null;
@@ -331,6 +373,9 @@ async function initProductGrid(targetSelector, opts = {}) {
     // the cards rather than in the page markup.
     target.innerHTML = '<div class="grid-sizer"></div>' + list.map((p, i) => productCardHTML(p, i)).join("");
     const masonry = initMasonry(target);
+    // `products`, not `list`: the home page renders only the first three, but
+    // its visitor is one click from the shop where the rest are waiting.
+    preloadProductImages(products);
 
     // Keep each swatch picker's compact summary (dot + name) in sync with
     // whichever colour option is selected, and tidy the picker back up once
