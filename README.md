@@ -96,19 +96,43 @@ through them, a ⤢ button that opens the photo full-size in a dialog (arrow key
 and a small "1 / 3" counter. The first photo in the list is the one used everywhere else (cart rows,
 the order PDF), so lead with your best shot.
 
-**After adding or replacing any `.jpg`/`.png`** (product photos, swatch images, the `assets/art/`
-scans), regenerate its compressed `.webp` sibling — every page points images at the `.webp` first
-and only falls back to the original if that file is missing:
+### Image sizes (important when adding photos)
+
+Every page points images at a `.webp` and falls back to the original `.jpg`/`.png` only if that
+file is missing. **Product gallery photos ship at two sizes:**
+
+| file | size | used for |
+|---|---|---|
+| `gallery_1.webp` | 600px | the card carousel — this is the one preloaded |
+| `gallery_1_full.webp` | full res | the lightbox, fetched only when someone expands a photo |
+| `gallery_1.jpg` | original | fallback if webp is unsupported |
+
+The split is what makes the carousel instant: every card-sized photo is preloaded in the background
+after the page loads (see `preloadProductImages` in `js/products.js`), so stepping a carousel costs
+no download at all. Opening the lightbox shows that already-loaded 600px image immediately, then
+fades the full-resolution copy in over it once it arrives.
+
+**After adding or replacing any `.jpg`/`.png`**, generate the sizes it needs:
 
 ```
-magick path/to/photo.jpg -resize '1600x1600>' -quality 82 path/to/photo.webp
+magick photo.jpg -resize '1600x1600>' -quality 82 photo_full.webp
+```
+
+```
+magick photo.jpg -resize '600x600>' -quality 82 photo.webp
+```
+
+Swatch images only ever render as a 56px tile, so they need just the one small file:
+
+```
+magick swatch.jpg -resize '160x160>' -quality 82 swatch.webp
 ```
 
 (`magick` is ImageMagick; `brew install imagemagick` / `apt install imagemagick` if you don't have
-it.) Skipping this step isn't a hard failure — the site just quietly serves the uncompressed
-original for that one photo until you run it — but images typically shrink 50–90%, so it's worth
-doing before a batch of new product photos goes live. `.svg` icons and doodles don't need this;
-only photographic `.jpg`/`.png` benefit from webp.
+it.) Skipping this isn't a hard failure — a photo with no `_full.webp` simply stays at card
+resolution in the lightbox, and one with no `.webp` at all falls back to the original — but the
+sizes matter: the full set of card photos is 507KB, where shipping the originals to every visitor
+was 2.2MB. `.svg` icons and doodles don't need any of this.
 
 `data/config.json` holds the business-wide details — most importantly `"email"`, which is where the
 checkout page addresses its email handoff. **Update that to your real inbox before you go live.**

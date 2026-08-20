@@ -29,6 +29,15 @@ function toWebp(src) {
   return RASTER_EXT.test(src) ? src.replace(RASTER_EXT, ".webp") : src;
 }
 
+/* Gallery photos ship at two sizes. The plain .webp is card-sized (600px) and
+   is what gets preloaded, so a carousel step is instant; the _full.webp beside
+   it is the original, fetched only when someone actually opens the lightbox.
+   Falls back to the card image if a photo has no full-size sibling. */
+function toFullWebp(src) {
+  const webp = toWebp(src);
+  return webp.endsWith(".webp") ? webp.replace(/\.webp$/, "_full.webp") : webp;
+}
+
 /* Returns the src/data-orig attributes to splice into an <img> tag. */
 function webpAttrs(src) {
   const webp = toWebp(src);
@@ -270,6 +279,36 @@ function showGalleryImage(gallery, step, onResize) {
   else ["load", "error"].forEach((evt) => img.addEventListener(evt, onResize, { once: true }));
 }
 
+/* Show a photo in the lightbox at the card-sized image first — it's already in
+   memory from the preload, so something appears immediately rather than after
+   a download — then fetch the full-resolution copy and fade it in on top.
+   The two <img>s are stacked so the swap is a cross-fade rather than a blink
+   through empty space, and the low-res one stays underneath as the backdrop. */
+function showLightboxPhoto(dialog, src) {
+  const small = dialog.querySelector("[data-lightbox-img]");
+  const full = dialog.querySelector("[data-lightbox-full]");
+  setImgSrc(small, src);
+  // Reset to hidden *without* animating: letting the class removal transition
+  // out means a cached full-res can arrive mid-fade and snap in at whatever
+  // opacity it finds, so the fade plays only by luck. Killing the transition
+  // for one frame makes the hide instant and every fade-in start from 0.
+  full.style.transition = "none";
+  full.classList.remove("is-loaded");
+  full.removeAttribute("src");
+  void full.offsetWidth; // flush the change before re-enabling the transition
+  full.style.transition = "";
+  const hi = toFullWebp(src);
+  const loader = new Image();
+  loader.onload = () => {
+    // Ignore a load that finished after the viewer already stepped onward.
+    if (small.getAttribute("src") !== toWebp(src)) return;
+    full.src = hi;
+    full.classList.add("is-loaded");
+  };
+  // No _full sibling (or it 404s): the card-sized image simply stays.
+  loader.src = hi;
+}
+
 /* One <dialog> shared by every card — built on first use, then reused. Native
    showModal() gives us the backdrop, Esc-to-close and focus trapping for free. */
 function getLightbox() {
@@ -281,7 +320,10 @@ function getLightbox() {
   dialog.className = "lightbox";
   dialog.innerHTML = `
     <div class="lightbox__inner" data-lightbox-inner data-index="0">
-      <img class="lightbox__img" data-lightbox-img src="" alt="">
+      <div class="lightbox__frame">
+        <img class="lightbox__img" data-lightbox-img src="" alt="">
+        <img class="lightbox__img lightbox__img--full" data-lightbox-full src="" alt="" aria-hidden="true">
+      </div>
       <button type="button" class="gallery-btn gallery-btn--prev" data-lightbox-prev aria-label="Previous photo">‹</button>
       <button type="button" class="gallery-btn gallery-btn--next" data-lightbox-next aria-label="Next photo">›</button>
       <button type="button" class="lightbox__close" data-lightbox-close aria-label="Close">✕</button>
@@ -295,7 +337,7 @@ function getLightbox() {
     if (images.length === 0) return;
     const next = (Number(inner.dataset.index || 0) + by + images.length) % images.length;
     inner.dataset.index = String(next);
-    setImgSrc(dialog.querySelector("[data-lightbox-img]"), images[next]);
+    showLightboxPhoto(dialog, images[next]);
     dialog.querySelector("[data-lightbox-count]").textContent = images.length > 1 ? `${next + 1} / ${images.length}` : "";
   };
 
@@ -319,7 +361,7 @@ function openLightbox(images, startIndex, caption) {
   const inner = dialog.querySelector("[data-lightbox-inner]");
   inner.dataset.images = JSON.stringify(images);
   inner.dataset.index = String(startIndex);
-  setImgSrc(dialog.querySelector("[data-lightbox-img]"), images[startIndex]);
+  showLightboxPhoto(dialog, images[startIndex]);
   dialog.querySelector("[data-lightbox-img]").alt = caption;
   dialog.querySelector("[data-lightbox-caption]").textContent = caption;
   dialog.querySelector("[data-lightbox-count]").textContent = images.length > 1 ? `${startIndex + 1} / ${images.length}` : "";

@@ -13,7 +13,7 @@ use std::{fs, io};
 
 /// Cache-buster appended to css/style.css. Bump when the stylesheet changes,
 /// otherwise returning visitors keep being served the copy they cached.
-const CSS_V: u32 = 24;
+const CSS_V: u32 = 25;
 
 const PAGES: [&str; 4] = ["index", "shop", "cart", "checkout"];
 
