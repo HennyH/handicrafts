@@ -347,9 +347,9 @@ textarea { resize: vertical; min-height: 80px; }
 .recipe-card__title { font-size: 1.3rem; margin: 0 0 6px; }
 .recipe-card__tagline { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 14px; }
 .recipe-card__link { font-family: var(--font-body); font-weight: 600; font-size: 0.85rem; color: var(--ink); }
-.recipe-card--gold { border-top: 6px solid var(--gold); }
-.recipe-card--clay { border-top: 6px solid var(--clay); }
-.recipe-card--sage { border-top: 6px solid var(--sage); }
+.recipe-card--gold { border-color: var(--gold); }
+.recipe-card--clay { border-color: var(--clay); }
+.recipe-card--sage { border-color: var(--sage); }
 .recipe-card:hover .recipe-card__link { color: var(--navy-deep); }
 
 .recipe__header { text-align: center; padding: 30px 0 10px; }
@@ -387,15 +387,19 @@ textarea { resize: vertical; min-height: 80px; }
 .ingredient-list input:focus-visible + .ingredient-check { outline: 2px solid var(--navy); outline-offset: 2px; }
 .ingredient-list input:checked ~ .ingredient-text { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--ink-soft); }
 
-/* Temperatures and times are what you glance back at mid-recipe, so they get
-   the strongest visual pull on the page: a solid pill rather than plain text. */
+/* Temperatures, times and lengths are what you glance back at mid-recipe, so
+   each gets its own colour rather than one flat "number" look — a plain
+   quantity (4 cups, 180g) stays a neutral navy, while the specific things
+   you'd actually search the page for (a temp, a time, a length) each pull a
+   different accent so you can find the right one at a glance, not just any
+   bolded number. Plain colour+size, no pill — the badge look didn't fit
+   asked for here as well as it fit the ingredient/method context on its own. */
 .recipe__method ol { margin: 0; padding-left: 1.3em; }
 .recipe__method li { margin: 0 0 14px; }
-.recipe__method .number, .ingredient-list .number { font-weight: 700; }
-.recipe__method .number {
-  display: inline-block; background: var(--gold); color: var(--ink); border-radius: 999px;
-  padding: 0 8px; margin: 0 1px;
-}
+.number { font-weight: 700; font-size: 1.2em; color: var(--navy-deep); }
+.number--temp { color: var(--clay); }
+.number--time { color: var(--gold-deep); }
+.number--length { color: var(--sage); }
 
 .recipe__note {
   margin: 26px 0 0; padding: 14px 18px; background: color-mix(in srgb, var(--gold) 14%, var(--paper));

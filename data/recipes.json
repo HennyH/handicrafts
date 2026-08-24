@@ -13,9 +13,9 @@
     ],
     "method": [
       "Sift the flour into a bowl, then make a well and add the remaining ingredients and gently mix together until the mixture just comes together as a dough.",
-      "Dust a clean surface with flour and roll out the dough until it's about <span class=\"number\">2cm</span> thick.",
+      "Dust a clean surface with flour and roll out the dough until it's about <span class=\"number number--length\">2cm</span> thick.",
       "Use a cookie cutter or other appropriately sized object to cut out scones.",
-      "Bake in an oven heated to <span class=\"number\">200°C</span> fan force for <span class=\"number\">15</span>–<span class=\"number\">20</span> minutes."
+      "Bake in an oven heated to <span class=\"number number--temp\">200°C</span> fan force for <span class=\"number number--time\">15</span>–<span class=\"number number--time\">20</span> minutes."
     ]
   },
   {
@@ -42,13 +42,13 @@
       "<span class=\"number\">1⁄2</span> tsp cinnamon"
     ],
     "method": [
-      "Preheat oven to <span class=\"number\">170°C</span> (<span class=\"number\">150°C</span> fan force). Line two baking trays with baking paper.",
+      "Preheat oven to <span class=\"number number--temp\">170°C</span> (<span class=\"number number--temp\">150°C</span> fan force). Line two baking trays with baking paper.",
       "Place butter, golden syrup, honey and sugar in a small saucepan over a low-medium heat. Stir occasionally and remove from heat when butter is melted.",
       "Add vanilla to saucepan, stir through and set aside.",
       "Combine flour, rolled oats, desiccated coconut, brazil nuts, almonds, walnuts/pecans, pumpkin seeds, cocoa powder and cinnamon in a large mixing bowl.",
       "Pour butter mixture into dry ingredients and mix.",
       "Roll mixture into golf ball sized balls and slightly flatten onto baking trays.",
-      "Bake for approximately <span class=\"number\">10min</span>, being careful not to over cook as they are quite dark."
+      "Bake for approximately <span class=\"number number--time\">10min</span>, being careful not to over cook as they are quite dark."
     ]
   },
   {
@@ -68,15 +68,16 @@
       "<span class=\"number\">1⁄2</span> tsp cayenne pepper or chilli powder",
       "<span class=\"number\">1⁄2</span> tsp cumin",
       "<span class=\"number\">10</span>–<span class=\"number\">12</span> cups stock (chicken, beef or vegetable)",
+      "<span class=\"number\">3</span> cups of red lentils, well rinsed",
       "<span class=\"number\">2</span> tsp ginger (finely sliced)",
       "<span class=\"number\">2</span> large carrots (sliced)",
       "<span class=\"number\">1⁄2</span> tsp lemon juice",
       "salt to taste"
     ],
     "method": [
-      "In a large pot, over medium heat, cook the onions in the olive oil until translucent and slightly golden (around <span class=\"number\">15</span> minutes).",
+      "In a large pot, over medium heat, cook the onions in the olive oil until translucent and slightly golden (around <span class=\"number number--time\">15</span> minutes).",
       "Add the crushed garlic and cook for another minute. Add the turmeric, cayenne pepper and cumin, cooking for another minute before adding in the stock (being sure to scrape the flavour from the bottom).",
-      "Add in the lentils, carrots and ginger. Reduce heat and leave to simmer, stirring occasionally, until everything is cooked and the soup has reduced a little (about an <span class=\"number\">hour</span>). If a thicker consistency is desired (which it generally is), leave on the heat for a while longer; if not, remove from heat and blend the soup until it is the desired consistency."
+      "Add in the lentils, carrots and ginger. Reduce heat and leave to simmer, stirring occasionally, until everything is cooked and the soup has reduced a little (about an <span class=\"number number--time\">hour</span>). If a thicker consistency is desired (which it generally is), leave on the heat for a while longer; if not, remove from heat and blend the soup until it is the desired consistency."
     ]
   }
 ]
