@@ -428,12 +428,28 @@ textarea { resize: vertical; min-height: 80px; }
    but that's just a normal-specificity rule — an author display:flex on
    .donation__panel would win the cascade and defeat it, leaving the panel
    showing even when collapsed. Scoping display:flex to the [open] state
-   only keeps the native show/hide in charge. */
+   only keeps the native show/hide in charge.
+
+   Base rules here are the no-JS fallback: opening pushes the page content
+   below it down, same as any plain <details>. That's a fully working
+   disclosure on its own — nothing here needs JS to work at all. The .js
+   rules below (see the inline script in base.html, which sets that class
+   before first paint) turn it into a floating dropdown instead, matching
+   .swatch-picker: without JS there's no way to close it on an outside
+   click, so it deliberately doesn't float over content it can't get out
+   from under. */
 .donation__panel {
   margin-top: 12px; padding: 16px; flex-direction: column; align-items: center; gap: 10px;
   background: var(--paper); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: var(--shadow-sketch);
 }
 .donation__toggle[open] .donation__panel { display: flex; }
+/* Opens upward, not down like .swatch-picker's — this toggle is the very
+   last thing on the page, right above the site footer, so downward has
+   nowhere to go but over that footer. */
+.js .donation__panel {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  z-index: 5; width: 220px; margin-top: 0;
+}
 .donation__qr { width: 140px; height: 140px; border-radius: 8px; border: 2px solid var(--ink); }
 .donation__address { font-family: var(--font-body); font-size: 0.72rem; color: var(--ink-soft); text-align: center; overflow-wrap: anywhere; max-width: 32ch; text-decoration: none; }
 .donation__address:hover { color: var(--navy-deep); }

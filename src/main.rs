@@ -14,7 +14,7 @@ use std::{fs, io};
 
 /// Cache-buster appended to css/style.css. Bump when the stylesheet changes,
 /// otherwise returning visitors keep being served the copy they cached.
-const CSS_V: u32 = 30;
+const CSS_V: u32 = 32;
 
 /// Pages that render straight from a same-named template with no extra data
 /// of their own. `recipes.html` also gets the full recipe list in its

@@ -13,6 +13,15 @@
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=stardom&display=swap">
 <link rel="stylesheet" href="css/style.css?v={{ css_v }}">
 <script>
+/* Marks JS as available, synchronously, before first paint — the donation
+   disclosure uses this (see .js .donation__panel in style.css) to switch
+   from an in-flow block, which is all that works with no JS, to an
+   overlaying dropdown that also needs the outside-click-close behaviour
+   main.js adds. Without this class the CSS default stays the plain in-flow
+   version, so a no-JS visitor gets a fully working, if plainer, disclosure
+   rather than a dropdown with no way to close it. */
+document.documentElement.classList.add("js");
+
 /* Once the full-res paper texture has been cached (flag set by bg-swap.js),
    apply it here — before first paint — rather than letting bg-swap.js swap it
    in after load. Inline and synchronous on purpose: a deferred script runs too

@@ -12,7 +12,7 @@
     </header>
 
     <div class="recipe__body">
-      <section class="recipe__ingredients tilt-1">
+      <section class="recipe__ingredients">
         <h2 class="recipe__section-title">Ingredients</h2>
         <form class="ingredient-list" onsubmit="return false;">
           <ul>
@@ -29,7 +29,7 @@
         </form>
       </section>
 
-      <section class="recipe__method tilt-2">
+      <section class="recipe__method">
         <h2 class="recipe__section-title">Method</h2>
         <ol>
           {% for step in recipe.method %}
