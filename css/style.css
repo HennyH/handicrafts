@@ -448,9 +448,25 @@ textarea { resize: vertical; min-height: 80px; }
    nowhere to go but over that footer. */
 .js .donation__panel {
   position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
-  z-index: 5; width: 220px; margin-top: 0;
+  z-index: 5; margin-top: 0;
+  /* Room for a bigger QR (below), clamped so it never runs past the
+     viewport edge on a narrow phone screen. */
+  width: min(280px, calc(100vw - 48px));
 }
-.donation__qr { width: 140px; height: 140px; border-radius: 8px; border: 2px solid var(--ink); }
+/* Base size is the no-JS fallback: the panel there has no width of its own
+   (it's sized by the <details> shrinking to fit its content, not a fixed
+   box), so width:100% would size the QR against that shrink-to-fit box
+   instead of growing it — a fixed size is what actually stays comfortably
+   readable there. Once .js gives the panel a real, clamped width to size
+   against, height:auto keeps the QR square (the source SVG's own viewBox is
+   square) while width scales with however much room the panel has. */
+/* aspect-ratio + height:auto rather than a fixed height — the sitewide
+   `img { max-width:100% }` rule can end up shrinking the width alone in the
+   no-JS fallback's shrink-to-fit container (its resolved width isn't always
+   as wide as 180px), and a fixed height would then stretch the QR out of
+   square instead of scaling down with it. */
+.donation__qr { width: 180px; aspect-ratio: 1 / 1; height: auto; border-radius: 8px; border: 2px solid var(--ink); }
+.js .donation__qr { width: 100%; height: auto; }
 .donation__address { font-family: var(--font-body); font-size: 0.72rem; color: var(--ink-soft); text-align: center; overflow-wrap: anywhere; max-width: 32ch; text-decoration: none; }
 .donation__address:hover { color: var(--navy-deep); }
 
