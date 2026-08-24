@@ -12,7 +12,7 @@
     </header>
 
     <div class="recipe__body">
-      <section class="recipe__ingredients">
+      <section class="recipe__ingredients tilt-1">
         <h2 class="recipe__section-title">Ingredients</h2>
         <form class="ingredient-list" onsubmit="return false;">
           <ul>
@@ -29,7 +29,7 @@
         </form>
       </section>
 
-      <section class="recipe__method">
+      <section class="recipe__method tilt-2">
         <h2 class="recipe__section-title">Method</h2>
         <ol>
           {% for step in recipe.method %}
@@ -53,5 +53,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="js/cart.js?v=3"></script>
-<script src="js/main.js?v=4"></script>
+<script src="js/main.js?v=5"></script>
 {% endblock %}

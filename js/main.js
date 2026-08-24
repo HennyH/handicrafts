@@ -1,4 +1,16 @@
 /* main.js — bits shared by every page: mobile nav + footer year */
+
+// The Monero donation disclosure is a native <details> — it opens and closes
+// perfectly well with zero JS, so that stays the fallback. This only adds the
+// bit native <details> doesn't do on its own: closing when you click outside
+// it, which is what makes it read as a dropdown rather than an expanding
+// block of page, matching the fabric swatch picker's dropdown behaviour.
+document.addEventListener("click", (e) => {
+  document.querySelectorAll(".donation__toggle[open]").forEach((details) => {
+    if (!details.contains(e.target)) details.removeAttribute("open");
+  });
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   const toggle = document.querySelector(".nav__toggle");
   const menu = document.querySelector(".nav__menu");

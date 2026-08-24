@@ -405,7 +405,11 @@ textarea { resize: vertical; min-height: 80px; }
   margin: 26px 0 0; padding: 14px 18px; background: color-mix(in srgb, var(--gold) 14%, var(--paper));
   border: 1.5px dashed var(--gold-deep); border-radius: 12px; font-size: 0.92rem;
 }
-.recipe__footer { margin-top: 34px; text-align: center; }
+/* padding-bottom fixed rather than left to the last child's own margin — the
+   donation disclosure has no margin of its own below it, so without this the
+   footer runs straight into the site footer's border the moment a recipe has
+   one. Matches margin-top so the gap above and below reads the same either way. */
+.recipe__footer { margin-top: 34px; padding-bottom: 34px; text-align: center; }
 .recipe__byline { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 4px; }
 .recipe__credit { color: var(--ink-soft); font-size: 0.82rem; margin: 0 0 18px; }
 
