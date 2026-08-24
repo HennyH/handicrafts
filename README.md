@@ -20,9 +20,12 @@ templates/index.html  Home page body (hero, "why it's different", featured produ
 templates/shop.html    Full product grid
 templates/cart.html    Cart: quantities, remove, subtotal
 templates/checkout.html Customer details form → Order PDF → email handoff
+templates/recipes.html  Recipe index — a card per recipe, built from data/recipes.json
+templates/recipe.html   ONE template for every recipe page (rendered once per entry, see below)
+templates/_donation.html Monero donation disclosure, {% include %}d into recipe.html
 
 src/main.rs          The build: renders templates/ + copies static files into dist/
-Cargo.toml           Its one dependency (minijinja, a Jinja2-style template engine)
+Cargo.toml           Dependencies: minijinja (templates) + serde_json (reads recipes.json)
 dist/                Generated output — gitignored, never edited by hand
 
 css/style.css        All styling (hand-drawn/quirky theme, one file)
@@ -30,9 +33,10 @@ js/products.js        Loads data/products.json, renders product cards
 js/cart.js            Cart logic (localStorage)
 js/cart-page.js        Renders cart.html
 js/checkout.js         Order building, PDF generation (jsPDF), mailto handoff
-js/main.js             Shared bits: mobile nav, footer year
+js/main.js             Shared bits: mobile nav, footer year, nav "active" link highlighting
 
 data/products.json     ← THE FILE YOU EDIT to add/change/remove products
+data/recipes.json      ← THE FILE YOU EDIT to add/change/remove recipes
 data/config.json       Business name, email, tagline, etc.
 
 assets/doodles/        Hand-drawn SVG illustrations (logo, sewing machine, icons)
@@ -136,6 +140,48 @@ was 2.2MB. `.svg` icons and doodles don't need any of this.
 
 `data/config.json` holds the business-wide details — most importantly `"email"`, which is where the
 checkout page addresses its email handoff. **Update that to your real inbox before you go live.**
+
+## Editing recipes
+
+Open `data/recipes.json` — a plain JSON array, one object per recipe, same pattern as
+`data/products.json`. The build (`cargo run`) turns each entry into its own page,
+`recipe-<id>.html`, from the single `templates/recipe.html` template — add a recipe here and a
+page for it appears automatically; there's no HTML to write by hand.
+
+```json
+{
+  "id": "scones",                    // unique, no spaces — becomes the page's filename
+  "title": "Scones",
+  "tagline": "A deliciously simple recipe for the novice, the dabbler and the seasoned baker alike!",
+  "accent": "gold",                  // gold, clay or sage — the site's three accent colours
+  "byline": "A family recipe contributed by <span class=\"author\">Emily Bell</span>.",
+  "donation": false,                 // true adds the Monero donation disclosure to the footer
+  "note": "Optional — a callout box shown between the method and the footer. Omit if not needed.",
+  "credit": "Optional — a small credit line above the byline, e.g. crediting an inspiration recipe. Can contain a <a href=\"...\">link</a>.",
+  "ingredients": [
+    "<span class=\"number\">4</span> cups self raising flour"
+  ],
+  "method": [
+    "Bake in an oven heated to <span class=\"number\">200°C</span> fan force for <span class=\"number\">15</span>–<span class=\"number\">20</span> minutes."
+  ]
+}
+```
+
+`ingredients` and `method` are each a list of raw HTML strings rendered as-is (via minijinja's
+`|safe` filter), not plain text — that's deliberate, not an oversight, and it's what lets a single
+ingredient line mix quantities, fractions and free text however it needs to. Wrap anything you want
+visually called out — a temperature, a time, a quantity — in `<span class="number">...</span>`; the
+CSS turns those into the gold pills in the method list and bolds them in the ingredients list. Since
+these are raw HTML, escape any literal `<`, `>` or `&` in the recipe text itself (e.g. `&amp;`), and
+never paste in HTML from a source you don't trust — it renders unescaped, exactly as written.
+
+Ingredients get a click-to-tick checkbox automatically — that's pure CSS (`:checked` + a sibling
+selector), no JavaScript, and nothing persists between visits, matching how the original recipe site
+this was migrated from worked.
+
+The Monero donation panel (QR code + address) is one shared partial,
+`templates/_donation.html` — the address lives there once, not per-recipe; set `"donation": true`
+on any recipe that should show it, rather than editing the address in multiple places.
 
 ## Running it locally
 

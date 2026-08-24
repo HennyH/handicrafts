@@ -1,0 +1,82 @@
+[
+  {
+    "id": "scones",
+    "title": "Scones",
+    "tagline": "A deliciously simple recipe for the novice, the dabbler and the seasoned baker alike!",
+    "accent": "gold",
+    "byline": "A family recipe contributed by <span class=\"author\">Emily Bell</span>.",
+    "donation": false,
+    "ingredients": [
+      "<span class=\"number\">4</span> cups self raising flour",
+      "<span class=\"number\">1</span> cup whipping cream",
+      "<span class=\"number\">1</span> cup lemonade or tonic water"
+    ],
+    "method": [
+      "Sift the flour into a bowl, then make a well and add the remaining ingredients and gently mix together until the mixture just comes together as a dough.",
+      "Dust a clean surface with flour and roll out the dough until it's about <span class=\"number\">2cm</span> thick.",
+      "Use a cookie cutter or other appropriately sized object to cut out scones.",
+      "Bake in an oven heated to <span class=\"number\">200°C</span> fan force for <span class=\"number\">15</span>–<span class=\"number\">20</span> minutes."
+    ]
+  },
+  {
+    "id": "choconut-bikkies",
+    "title": "Choconut Bikkies",
+    "tagline": "These dark and indulgent biscuits will turn you into a crunchy cookie monster. Not so sweet, but so good!",
+    "accent": "clay",
+    "byline": "A family recipe created by <span class=\"author\">Rachel Hollingworth</span>.",
+    "donation": true,
+    "ingredients": [
+      "<span class=\"number\">180</span>g butter",
+      "<span class=\"number\">1⁄4</span> cup lightly packed brown sugar",
+      "<span class=\"number\">1</span> tbsp golden syrup",
+      "<span class=\"number\">1</span> tbsp + <span class=\"number\">1</span> tsp honey",
+      "<span class=\"number\">1</span> tsp vanilla essence",
+      "<span class=\"number\">1⁄3</span> cup chopped brazil nuts",
+      "<span class=\"number\">1⁄3</span> cup chopped almonds",
+      "<span class=\"number\">1⁄4</span> cup chopped walnuts or pecans",
+      "<span class=\"number\">1⁄4</span> cup chopped pumpkin seeds",
+      "<span class=\"number\">1</span> cup desiccated coconut",
+      "<span class=\"number\">2⁄3</span> cup rolled oats",
+      "<span class=\"number\">1⁄2</span> cup rice flour + <span class=\"number\">1⁄2</span> cup corn flour, or 1 cup plain flour",
+      "<span class=\"number\">1⁄4</span> cup cocoa powder",
+      "<span class=\"number\">1⁄2</span> tsp cinnamon"
+    ],
+    "method": [
+      "Preheat oven to <span class=\"number\">170°C</span> (<span class=\"number\">150°C</span> fan force). Line two baking trays with baking paper.",
+      "Place butter, golden syrup, honey and sugar in a small saucepan over a low-medium heat. Stir occasionally and remove from heat when butter is melted.",
+      "Add vanilla to saucepan, stir through and set aside.",
+      "Combine flour, rolled oats, desiccated coconut, brazil nuts, almonds, walnuts/pecans, pumpkin seeds, cocoa powder and cinnamon in a large mixing bowl.",
+      "Pour butter mixture into dry ingredients and mix.",
+      "Roll mixture into golf ball sized balls and slightly flatten onto baking trays.",
+      "Bake for approximately <span class=\"number\">10min</span>, being careful not to over cook as they are quite dark."
+    ]
+  },
+  {
+    "id": "yellow-lentil-soup",
+    "title": "Yellow Lentil Soup",
+    "tagline": "This budget friendly comfort soup is great just by itself or with some freshly baked sourdough bread.",
+    "accent": "sage",
+    "byline": "A family recipe created by <span class=\"author\">Rachel Hollingworth</span>.",
+    "donation": true,
+    "note": "For those who just want/need it done with as little fuss as possible, follow step one, then throw all the other ingredients in and it will turn out just fine.",
+    "credit": "Recipe inspired by Dari’s Lentil Soup and <a href=\"https://www.simplyleb.com/recipe/yellowlentil/\" target=\"_blank\" rel=\"noopener\">Iman’s Yellow Lentil Soup</a>.",
+    "ingredients": [
+      "<span class=\"number\">2</span> tbsp olive oil",
+      "<span class=\"number\">3</span> medium/large onions (diced)",
+      "<span class=\"number\">3</span> cloves of garlic (crushed)",
+      "<span class=\"number\">1</span> tsp turmeric",
+      "<span class=\"number\">1⁄2</span> tsp cayenne pepper or chilli powder",
+      "<span class=\"number\">1⁄2</span> tsp cumin",
+      "<span class=\"number\">10</span>–<span class=\"number\">12</span> cups stock (chicken, beef or vegetable)",
+      "<span class=\"number\">2</span> tsp ginger (finely sliced)",
+      "<span class=\"number\">2</span> large carrots (sliced)",
+      "<span class=\"number\">1⁄2</span> tsp lemon juice",
+      "salt to taste"
+    ],
+    "method": [
+      "In a large pot, over medium heat, cook the onions in the olive oil until translucent and slightly golden (around <span class=\"number\">15</span> minutes).",
+      "Add the crushed garlic and cook for another minute. Add the turmeric, cayenne pepper and cumin, cooking for another minute before adding in the stock (being sure to scrape the flavour from the bottom).",
+      "Add in the lentils, carrots and ginger. Reduce heat and leave to simmer, stirring occasionally, until everything is cooked and the soup has reduced a little (about an <span class=\"number\">hour</span>). If a thicker consistency is desired (which it generally is), leave on the heat for a while longer; if not, remove from heat and blend the soup until it is the desired consistency."
+    ]
+  }
+]

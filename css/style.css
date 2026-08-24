@@ -337,6 +337,99 @@ textarea { resize: vertical; min-height: 80px; }
 .empty-state { text-align: center; padding: 50px 20px; color: var(--ink-soft); }
 .empty-state img { width: 80px; margin: 0 auto 16px; opacity: 0.7; }
 
+/* recipes */
+/* Each recipe picks one accent — gold/clay/sage, the same trio used elsewhere
+   on the site — rather than the arbitrary per-page colours the old recipe
+   site used. color-mix() tints it against the page's own paper rather than
+   needing a hand-picked pastel for every accent. */
+.recipe-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 28px; margin: 30px 0 60px; }
+.recipe-card { display: block; text-decoration: none; color: inherit; }
+.recipe-card__title { font-size: 1.3rem; margin: 0 0 6px; }
+.recipe-card__tagline { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 14px; }
+.recipe-card__link { font-family: var(--font-body); font-weight: 600; font-size: 0.85rem; color: var(--ink); }
+.recipe-card--gold { border-top: 6px solid var(--gold); }
+.recipe-card--clay { border-top: 6px solid var(--clay); }
+.recipe-card--sage { border-top: 6px solid var(--sage); }
+.recipe-card:hover .recipe-card__link { color: var(--navy-deep); }
+
+.recipe__header { text-align: center; padding: 30px 0 10px; }
+.recipe__back { font-size: 0.85rem; color: var(--ink-soft); text-decoration: none; }
+.recipe__back:hover { color: var(--navy-deep); }
+.recipe__title { font-size: 2.6rem; margin: 10px 0 8px; }
+.recipe__tagline { color: var(--ink-soft); max-width: 60ch; margin: 0 auto; }
+.recipe--gold .recipe__title { text-decoration: underline; text-decoration-color: var(--gold); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+.recipe--clay .recipe__title { text-decoration: underline; text-decoration-color: var(--clay); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+.recipe--sage .recipe__title { text-decoration: underline; text-decoration-color: var(--sage); text-decoration-thickness: 3px; text-underline-offset: 6px; }
+
+.recipe__body { display: grid; grid-template-columns: 1fr 1.4fr; gap: 40px; margin: 20px 0 30px; align-items: start; }
+.recipe__ingredients, .recipe__method { background: var(--white); border: 2px solid var(--ink); border-radius: 18px; padding: 22px 24px; box-shadow: var(--shadow-sketch); }
+.recipe__section-title { font-size: 1.5rem; text-align: left; margin: 0 0 14px; }
+
+/* Ingredient ticking is CSS-only, same as the site it's ported from — no JS,
+   nothing to persist. The checkbox is visually hidden; a hand-drawn circle
+   in its place fills to a check mark, and the line strikes through and fades
+   so a ticked ingredient reads as "done" at a glance while shopping. */
+.ingredient-list ul { list-style: none; margin: 0; padding: 0; }
+.ingredient-list li { margin: 0 0 10px; }
+.ingredient-list label { display: flex; align-items: baseline; gap: 10px; cursor: pointer; }
+.ingredient-list input[type="checkbox"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ingredient-check {
+  flex-shrink: 0; align-self: center; width: 20px; height: 20px; border: 2px solid var(--ink); border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.85rem; line-height: 1; color: transparent;
+  /* transition background-color specifically, not the "background" shorthand
+     — animating the shorthand never actually plays in some browsers, so the
+     checked fill would silently stick at transparent forever */
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s var(--ease-natural);
+}
+.ingredient-check::after { content: "✓"; }
+.ingredient-list input:checked + .ingredient-check { background-color: var(--sage); border-color: var(--sage); color: var(--white); transform: scale(1.08); }
+.ingredient-list input:focus-visible + .ingredient-check { outline: 2px solid var(--navy); outline-offset: 2px; }
+.ingredient-list input:checked ~ .ingredient-text { color: var(--ink-soft); text-decoration: line-through; text-decoration-color: var(--ink-soft); }
+
+/* Temperatures and times are what you glance back at mid-recipe, so they get
+   the strongest visual pull on the page: a solid pill rather than plain text. */
+.recipe__method ol { margin: 0; padding-left: 1.3em; }
+.recipe__method li { margin: 0 0 14px; }
+.recipe__method .number, .ingredient-list .number { font-weight: 700; }
+.recipe__method .number {
+  display: inline-block; background: var(--gold); color: var(--ink); border-radius: 999px;
+  padding: 0 8px; margin: 0 1px;
+}
+
+.recipe__note {
+  margin: 26px 0 0; padding: 14px 18px; background: color-mix(in srgb, var(--gold) 14%, var(--paper));
+  border: 1.5px dashed var(--gold-deep); border-radius: 12px; font-size: 0.92rem;
+}
+.recipe__footer { margin-top: 34px; text-align: center; }
+.recipe__byline { color: var(--ink-soft); font-size: 0.9rem; margin: 0 0 4px; }
+.recipe__credit { color: var(--ink-soft); font-size: 0.82rem; margin: 0 0 18px; }
+
+/* Same disclosure pattern as .swatch-picker, reused rather than reinvented. */
+.donation { margin-top: 18px; display: flex; justify-content: center; }
+.donation__toggle { position: relative; }
+.donation__summary {
+  display: inline-flex; align-items: center; gap: 8px; font-size: 0.85rem; color: var(--ink);
+  cursor: pointer; padding: 6px 14px; border: 1.5px dashed var(--ink-soft); border-radius: 999px; list-style: none; user-select: none;
+}
+.donation__summary::-webkit-details-marker { display: none; }
+.donation__icon { width: 18px; height: 18px; }
+.donation__chevron { font-size: 0.7rem; color: var(--ink-soft); transition: transform 0.2s ease; }
+.donation__toggle[open] .donation__chevron { transform: rotate(180deg); }
+/* <details> hides its non-summary children natively via the UA stylesheet,
+   but that's just a normal-specificity rule — an author display:flex on
+   .donation__panel would win the cascade and defeat it, leaving the panel
+   showing even when collapsed. Scoping display:flex to the [open] state
+   only keeps the native show/hide in charge. */
+.donation__panel {
+  margin-top: 12px; padding: 16px; flex-direction: column; align-items: center; gap: 10px;
+  background: var(--paper); border: 1.5px solid var(--ink); border-radius: 12px; box-shadow: var(--shadow-sketch);
+}
+.donation__toggle[open] .donation__panel { display: flex; }
+.donation__qr { width: 140px; height: 140px; border-radius: 8px; border: 2px solid var(--ink); }
+.donation__address { font-family: var(--font-body); font-size: 0.72rem; color: var(--ink-soft); text-align: center; overflow-wrap: anywhere; max-width: 32ch; text-decoration: none; }
+.donation__address:hover { color: var(--navy-deep); }
+
 /* motion */
 /* Uneven keyframe spacing reads as organic rather than a metronome. */
 @keyframes natural-sway {
@@ -351,6 +444,7 @@ textarea { resize: vertical; min-height: 80px; }
 /* responsive */
 @media (max-width: 800px) {
 .hero .wrap { grid-template-columns: 1fr; }
+.recipe__body { grid-template-columns: 1fr; }
 .nav__toggle { display: inline-block; }
   /* opaque overlay, or page content shows through the open menu */
   .nav__menu {

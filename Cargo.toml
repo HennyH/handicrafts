@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 minijinja = { version = "2", features = ["loader"] }
+# Only used to turn data/recipes.json into a minijinja Value at build time —
+# no derive macros, so this stays a small, fast-compiling dependency.
+serde_json = "1"

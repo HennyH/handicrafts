@@ -7,15 +7,19 @@
 //! straight to GitHub Pages, so the generated HTML is never committed and can
 //! never fall out of sync with the templates.
 
+use minijinja::value::Value;
 use minijinja::{context, Environment};
 use std::path::Path;
 use std::{fs, io};
 
 /// Cache-buster appended to css/style.css. Bump when the stylesheet changes,
 /// otherwise returning visitors keep being served the copy they cached.
-const CSS_V: u32 = 25;
+const CSS_V: u32 = 28;
 
-const PAGES: [&str; 4] = ["index", "shop", "cart", "checkout"];
+/// Pages that render straight from a same-named template with no extra data
+/// of their own. `recipes.html` also gets the full recipe list in its
+/// context (see `main`) — every other page here simply ignores that variable.
+const PAGES: [&str; 5] = ["index", "shop", "cart", "checkout", "recipes"];
 
 /// Copied into `dist/` verbatim. CNAME has to travel with the artifact or the
 /// custom domain is dropped on deploy; favicon.ico sits at the site root
@@ -58,14 +62,40 @@ fn main() -> io::Result<()> {
     env.set_keep_trailing_newline(true);
     env.set_loader(minijinja::path_loader("templates"));
 
+    // Recipe content lives in one JSON file, same as the product catalogue —
+    // edit data/recipes.json to add, remove or change a recipe, no template
+    // or Rust changes needed. Parsed with serde_json and handed to minijinja
+    // via Value::from_serialize, so the templates see plain lists/dicts.
+    let recipes_json = fs::read_to_string("data/recipes.json")?;
+    let recipes: serde_json::Value =
+        serde_json::from_str(&recipes_json).expect("data/recipes.json: invalid JSON");
+    let recipes_value = Value::from_serialize(&recipes);
+    let recipe_list = recipes.as_array().expect("data/recipes.json: expected a top-level array");
+
     for page in PAGES {
         let name = format!("{page}.html");
         let html = env
             .get_template(&name)
             .unwrap_or_else(|e| panic!("template {name}: {e}"))
-            .render(context! { css_v => CSS_V })
+            .render(context! { css_v => CSS_V, recipes => recipes_value })
             .unwrap_or_else(|e| panic!("rendering {name}: {e}"));
         fs::write(out.join(&name), html)?;
+    }
+
+    // One page per recipe, named after its `id` — recipe-scones.html rather
+    // than a recipes/ subdirectory, so it's a sibling of shop.html and cart.html
+    // and needs none of the relative-path handling a nested page would.
+    let recipe_tpl = env
+        .get_template("recipe.html")
+        .unwrap_or_else(|e| panic!("template recipe.html: {e}"));
+    for recipe in recipe_list {
+        let id = recipe["id"]
+            .as_str()
+            .unwrap_or_else(|| panic!("a recipe in data/recipes.json is missing \"id\""));
+        let html = recipe_tpl
+            .render(context! { css_v => CSS_V, recipe => Value::from_serialize(recipe) })
+            .unwrap_or_else(|e| panic!("rendering recipe \"{id}\": {e}"));
+        fs::write(out.join(format!("recipe-{id}.html")), html)?;
     }
 
     for item in STATIC {
@@ -75,6 +105,6 @@ fn main() -> io::Result<()> {
         }
     }
 
-    println!("built {} pages into dist/", PAGES.len());
+    println!("built {} pages + {} recipes into dist/", PAGES.len(), recipes.as_array().map_or(0, |a| a.len()));
     Ok(())
 }

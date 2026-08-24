@@ -11,11 +11,17 @@ document.addEventListener("DOMContentLoaded", () => {
   // Mark the nav link for the page you're on. Links that point at an anchor
   // (About -> index.html#story) are skipped: they're a place on a page, not a
   // page, and matching them would bold two items at once on the home page.
+  // Each recipe is its own page (recipe-scones.html, ...), so it never matches
+  // the "Recipes" link (recipes.html) by filename alone — treated as a match
+  // here, the same way a product's own page would belong under "Shop" if one
+  // existed.
   const here = location.pathname.split("/").pop() || "index.html";
+  const onRecipePage = here.startsWith("recipe-");
   document.querySelectorAll(".nav__menu a").forEach((link) => {
     const href = link.getAttribute("href") || "";
     if (href.includes("#")) return;
-    if (href.split("/").pop() !== here) return;
+    const hrefFile = href.split("/").pop();
+    if (hrefFile !== here && !(onRecipePage && hrefFile === "recipes.html")) return;
     link.classList.add("is-active");
     link.setAttribute("aria-current", "page");
   });
