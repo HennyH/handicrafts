@@ -46,6 +46,109 @@ struct Problem {
     kind: String,
 }
 
+/// The shop's name in Monokulo's plugin connect flow and its
+/// `Monokulo-Client` header.
+pub const SLUG: &str = "handicrafts";
+const CLIENT: &str = concat!("handicrafts/", env!("CARGO_PKG_VERSION"));
+
+fn http() -> reqwest::Client {
+    reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .user_agent(CLIENT)
+        .build()
+        .expect("http client")
+}
+
+/// Turn a failed answer into Monokulo's own words.
+async fn problem(res: reqwest::Response) -> (String, String) {
+    let status = res.status();
+    let text = res.text().await.unwrap_or_default();
+    let p: Problem = serde_json::from_str(&text).unwrap_or(Problem {
+        detail: text.chars().take(200).collect(),
+        kind: String::new(),
+    });
+    let detail = if p.detail.is_empty() {
+        format!("Monokulo answered {status}")
+    } else {
+        p.detail
+    };
+    (p.kind, detail)
+}
+
+/// Where to send the admin's browser to connect the store: Monokulo signs
+/// them in, asks them to confirm, and sends them back to `return_url` with a
+/// one-time `token` and our `nonce`. See docs.monokulo.com/plugins/.
+pub fn connect_url(
+    monokulo: &str,
+    site_url: &str,
+    return_url: &str,
+    nonce: &str,
+    name: &str,
+) -> String {
+    let q = |s: &str| crate::util::pct(s);
+    format!(
+        "{monokulo}/plugins/connect/{SLUG}?site_url={}&return_url={}&nonce={}&name={}",
+        q(site_url),
+        q(return_url),
+        q(nonce),
+        q(name)
+    )
+}
+
+#[derive(Deserialize)]
+struct Connection {
+    #[serde(default)]
+    api: String,
+    public_key: String,
+    secret_token: String,
+    #[serde(default)]
+    webhook_signing_secret: Option<String>,
+}
+
+/// Swap the connect code for the store's keys, registering our webhook as
+/// we go. Within 10 minutes of the browser coming back; each code works once.
+pub async fn finish_connect(
+    monokulo: &str,
+    token: &str,
+    webhook_url: &str,
+    name: &str,
+) -> Result<config::Monokulo, String> {
+    let res = http()
+        .post(format!("{monokulo}/plugins/connect/{SLUG}/finish"))
+        .header("Monokulo-Client", CLIENT)
+        .json(&serde_json::json!({ "token": token, "webhook_url": webhook_url, "name": name }))
+        .send()
+        .await
+        .map_err(|e| format!("couldn't reach Monokulo: {e}"))?;
+    if !res.status().is_success() {
+        return Err(problem(res).await.1);
+    }
+    let c: Connection = res
+        .json()
+        .await
+        .map_err(|e| format!("Monokulo's answer didn't make sense: {e}"))?;
+    let webhook_secret = c.webhook_signing_secret.ok_or(
+        "Monokulo didn't add the webhook, so payments couldn't be confirmed. Connect again.",
+    )?;
+    let api = if c.api.starts_with("http://") || c.api.starts_with("https://") {
+        c.api.trim_end_matches('/').to_string()
+    } else if c.api.is_empty() {
+        format!("{monokulo}/api/v1")
+    } else {
+        format!("{monokulo}/{}", c.api.trim_matches('/'))
+    };
+    if !c.public_key.starts_with("pk_") || !c.secret_token.starts_with("sk_") {
+        return Err("Monokulo's answer didn't hold the store's keys".into());
+    }
+    Ok(config::Monokulo {
+        url: monokulo.to_string(),
+        api,
+        public_key: c.public_key,
+        secret_key: c.secret_token,
+        webhook_secret,
+    })
+}
+
 pub struct Client {
     http: reqwest::Client,
     cfg: config::Monokulo,
@@ -53,12 +156,31 @@ pub struct Client {
 
 impl Client {
     pub fn new(cfg: config::Monokulo) -> Client {
-        let http = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(20))
-            .user_agent(concat!("handicrafts/", env!("CARGO_PKG_VERSION")))
-            .build()
-            .expect("http client");
-        Client { http, cfg }
+        Client { http: http(), cfg }
+    }
+
+    /// Ask Monokulo to send our webhook a signed `webhook.test` now.
+    /// `Ok(true)` when the delivery was taken.
+    pub async fn send_test_webhook(&self) -> Result<bool, String> {
+        let res = self
+            .http
+            .post(format!("{}/webhook-tests", self.cfg.api))
+            .bearer_auth(&self.cfg.secret_key)
+            .header("Monokulo-Client", CLIENT)
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .map_err(|e| format!("couldn't reach Monokulo: {e}"))?;
+        if !res.status().is_success() {
+            return Err(problem(res).await.1);
+        }
+        let v: serde_json::Value = res
+            .json()
+            .await
+            .map_err(|e| format!("Monokulo's answer didn't make sense: {e}"))?;
+        Ok(v.get("delivered")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false))
     }
 
     pub fn cfg(&self) -> &config::Monokulo {
@@ -84,35 +206,23 @@ impl Client {
         });
         let res = self
             .http
-            .post(format!("{}/api/v1/orders", self.cfg.url))
+            .post(format!("{}/orders", self.cfg.api))
             .bearer_auth(&self.cfg.secret_key)
+            .header("Monokulo-Client", CLIENT)
             .json(&body)
             .send()
             .await
             .map_err(|e| CreateError::Other(format!("couldn't reach Monokulo: {e}")))?;
-        let status = res.status();
-        let text = res
-            .text()
-            .await
-            .map_err(|e| CreateError::Other(format!("Monokulo's answer was cut off: {e}")))?;
-        if status.is_success() {
-            return serde_json::from_str(&text).map_err(|e| {
+        if res.status().is_success() {
+            return res.json().await.map_err(|e| {
                 CreateError::Other(format!("Monokulo's answer didn't make sense: {e}"))
             });
         }
-        let problem: Problem = serde_json::from_str(&text).unwrap_or(Problem {
-            detail: text.chars().take(200).collect(),
-            kind: String::new(),
-        });
-        let detail = if problem.detail.is_empty() {
-            format!("Monokulo answered {status}")
-        } else {
-            problem.detail
-        };
+        let (kind, detail) = problem(res).await;
         // "invalid-amount" (can't be priced) and "rates-unavailable" (no rate
         // for AUD right now) mean Monero can't be priced in AUD.
-        if problem.kind.ends_with("/invalid-amount")
-            || problem.kind.ends_with("/rates-unavailable")
+        if kind.ends_with("/invalid-amount")
+            || kind.ends_with("/rates-unavailable")
             || detail.contains("exchange rate")
         {
             Err(CreateError::Pricing(detail))
@@ -277,6 +387,54 @@ mod tests {
         assert_eq!(
             verify("whsec", Some("t=1000,v1=zz"), BODY, 1000).unwrap_err(),
             VerifyError::BadSignature
+        );
+    }
+
+    /// Monokulo's published sample deliveries (docs.monokulo.com/webhook-vectors.json):
+    /// every one under `deliveries` verifies, every one under `refuse` doesn't.
+    #[test]
+    fn monokulos_own_vectors() {
+        let v: serde_json::Value =
+            serde_json::from_str(include_str!("monokulo-webhook-vectors.json")).unwrap();
+        let secret = v["signing_secret"].as_str().unwrap();
+        let now = v["sent_at"].as_i64().unwrap();
+        let sig = |d: &serde_json::Value| {
+            d["headers"]["X-Monokulo-Signature"]
+                .as_str()
+                .map(str::to_string)
+        };
+        for d in v["deliveries"].as_array().unwrap() {
+            let ev = verify(
+                secret,
+                sig(d).as_deref(),
+                d["body"].as_str().unwrap().as_bytes(),
+                now,
+            );
+            assert!(ev.is_ok(), "{}: {ev:?}", d["name"]);
+        }
+        for d in v["refuse"].as_array().unwrap() {
+            let ev = verify(
+                secret,
+                sig(d).as_deref(),
+                d["body"].as_str().unwrap().as_bytes(),
+                now,
+            );
+            assert!(ev.is_err(), "should refuse: {}", d);
+        }
+    }
+
+    #[test]
+    fn connect_url_is_escaped() {
+        let u = connect_url(
+            "https://m.example",
+            "https://shop.example",
+            "https://shop.example/admin/monokulo/return",
+            "n0nce",
+            "Rachel's Handicrafts",
+        );
+        assert_eq!(
+            u,
+            "https://m.example/plugins/connect/handicrafts?site_url=https%3A%2F%2Fshop.example&return_url=https%3A%2F%2Fshop.example%2Fadmin%2Fmonokulo%2Freturn&nonce=n0nce&name=Rachel%27s%20Handicrafts"
         );
     }
 

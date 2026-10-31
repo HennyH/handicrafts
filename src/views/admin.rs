@@ -28,6 +28,7 @@ fn shell(title: &str, body: Markup) -> Markup {
                 header.top {
                     a.top__home href="/admin" { "Orders" }
                     a href="/admin/settings" { "Invoice template" }
+                    a href="/admin/monokulo" { "Monero" }
                     a href="/" target="_blank" { "Shop ↗" }
                 }
                 (body)
@@ -310,6 +311,94 @@ pub fn settings(
                                 }
                             }
                         }
+                    }
+                }
+            }
+        },
+    )
+}
+
+/// What /admin/monokulo shows.
+pub struct MonokuloPage<'a> {
+    /// The Monokulo address set in LuCI.
+    pub url: Option<&'a str>,
+    pub shop_url: &'a str,
+    /// Connected at /admin/monokulo: the public key and when.
+    pub connected: Option<(&'a str, Option<i64>)>,
+    /// Using keys pasted into LuCI.
+    pub keys: bool,
+    pub last_test: Option<i64>,
+    pub notice: Option<&'a str>,
+    pub error: Option<&'a str>,
+    pub csrf: &'a str,
+}
+
+pub fn monokulo(p: MonokuloPage) -> Markup {
+    let form = |action: &str, label: &str, accent: bool| {
+        html! {
+            form method="post" action=(action) style="display:inline" {
+                input type="hidden" name="csrf" value=(p.csrf);
+                button.btn.btn--accent[accent] type="submit" { (label) }
+            }
+        }
+    };
+    let host = p
+        .shop_url
+        .split("://")
+        .nth(1)
+        .unwrap_or(p.shop_url)
+        .split('/')
+        .next()
+        .unwrap_or("");
+    shell(
+        "Monero",
+        html! {
+            main.page {
+                h1 { "Monero (Monokulo)" }
+                @if let Some(e) = p.error { div.banner.banner--bad role="alert" { (e) } }
+                @if let Some(n) = p.notice { div.banner.banner--good role="status" { (n) } }
+                section.card {
+                    h2 { "Store" }
+                    @match (p.url, p.connected, p.keys) {
+                        (None, _, _) => {
+                            p { "Set the Monokulo address in LuCI (Services › Handicrafts › Payments) first, then come back here to connect the store." }
+                        }
+                        (Some(url), Some((pk, when)), _) => {
+                            p { b { "Connected" } " to " a href=(url) target="_blank" rel="noreferrer" { (url) }
+                                @if let Some(t) = when { " on " (util::datetime(t)) } "." }
+                            dl.kv { dt { "Public key" } dd.mono.wrap { (pk) } }
+                            p.hint { "Monokulo added this shop's webhook when it connected, so Monero payments are confirmed here by themselves." }
+                            div.actions {
+                                (form("/admin/monokulo/test", "Send a test webhook", true))
+                                (form("/admin/monokulo/connect", "Connect again", false))
+                                (form("/admin/monokulo/disconnect", "Disconnect", false))
+                            }
+                        }
+                        (Some(url), None, keys) => {
+                            @if keys {
+                                p { "Using the keys pasted into LuCI. Connecting the store here fetches its keys and adds the webhook by itself; it then takes over from those keys." }
+                            } @else {
+                                p { b { "Not connected." } " Customers can only pay by bank transfer until the store is connected." }
+                            }
+                            p { "Connecting takes you to " (url) " to sign in and confirm, then brings you back here." }
+                            div.actions {
+                                (form("/admin/monokulo/connect", "Connect to Monokulo", true))
+                                @if keys { (form("/admin/monokulo/test", "Send a test webhook", false)) }
+                            }
+                            p.hint { "Monokulo finds the store by this shop's address, " b { (host) } ", and makes one if there isn't one yet. It needs its own public address set in its admin settings to connect shops." }
+                        }
+                    }
+                }
+                @if p.connected.is_some() || p.keys {
+                    section.card style="margin-top:16px" {
+                        h2 { "Test webhook" }
+                        p {
+                            @match p.last_test {
+                                Some(t) => { "Last test webhook received " (util::datetime(t)) "." }
+                                None => { "No test webhook received yet." }
+                            }
+                        }
+                        p.hint { "\"Send a test webhook\" asks Monokulo to send one now. When it arrives, signed with the right secret, the time above changes." }
                     }
                 }
             }

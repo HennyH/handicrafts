@@ -62,7 +62,8 @@ pub async fn page(
     let mut mk_row: Option<MonokuloOrder> = None;
     let mut failure: Option<MoneroState<'static>> = None;
     let bank = app.cfg.bank.any().then_some(&app.cfg.bank);
-    let method = match (requested, &app.monokulo, bank) {
+    let monokulo = app.monokulo();
+    let method = match (requested, &monokulo, bank) {
         (Some(Method::Bank), _, Some(_)) => Method::Bank,
         (_, Some(_), _) => Method::Monero,
         _ => Method::Bank,
@@ -78,7 +79,7 @@ pub async fn page(
         Status::Rejected => PayView::Cancelled,
         s if checkout::paid_status(s) => PayView::Paid,
         _ => {
-            let monero = app.monokulo.as_ref().map(|c| match (&mk_row, failure) {
+            let monero = monokulo.as_ref().map(|c| match (&mk_row, failure) {
                 (Some(mk), _) => MoneroState::Checkout { mk, cfg: c.cfg() },
                 (None, Some(f)) => f,
                 // Bank chosen: Monero is offered but not started.
@@ -105,7 +106,7 @@ async fn ensure_monokulo_order(
     app: &Arc<App>,
     order: &Order,
 ) -> Result<MonokuloOrder, MoneroState<'static>> {
-    let client = app.monokulo.as_ref().ok_or(MoneroState::Unavailable)?;
+    let client = app.monokulo().ok_or(MoneroState::Unavailable)?;
     let now = util::now();
     if let Ok(Some(mk)) = app.db.monokulo_order(order.id).await {
         let live =

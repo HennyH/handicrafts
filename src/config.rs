@@ -19,7 +19,9 @@ Settings (environment variables):
   Bank transfer details shown on the pay page:
   HANDICRAFTS_PAYID, HANDICRAFTS_BANK_ACCOUNT_NAME, HANDICRAFTS_BSB, HANDICRAFTS_ACCOUNT_NUMBER
   Monokulo (Monero):
-  HANDICRAFTS_MONOKULO_URL             e.g. https://www.monokulo.com
+  HANDICRAFTS_MONOKULO_URL             e.g. https://www.monokulo.com; then connect the store
+                                       at /admin/monokulo, which fetches the keys itself
+  Or keys pasted by hand (all three, used until the store is connected at /admin/monokulo):
   HANDICRAFTS_MONOKULO_PUBLIC_KEY      pk_…
   HANDICRAFTS_MONOKULO_SECRET_KEY      sk_…
   HANDICRAFTS_MONOKULO_WEBHOOK_SECRET  the webhook's signing secret
@@ -38,7 +40,10 @@ pub struct Config {
     pub admin_password_hash: Option<String>,
     pub admin_email: Option<String>,
     pub bank: Bank,
-    pub monokulo: Option<Monokulo>,
+    /// Monokulo's address, without a trailing slash.
+    pub monokulo_url: Option<String>,
+    /// Keys pasted by hand; a connection made at /admin/monokulo wins.
+    pub monokulo_keys: Option<MonokuloKeys>,
     pub limits: Limits,
 }
 
@@ -56,13 +61,38 @@ impl Bank {
     }
 }
 
-#[derive(Clone, Debug)]
+/// What the shop needs to take Monero through a Monokulo store: from the
+/// connect flow at /admin/monokulo, or from keys pasted into LuCI.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Monokulo {
-    /// Without a trailing slash.
+    /// Monokulo's address, without a trailing slash.
     pub url: String,
+    /// The HTTP API's base, e.g. https://www.monokulo.com/api/v1.
+    pub api: String,
     pub public_key: String,
     pub secret_key: String,
     pub webhook_secret: String,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct MonokuloKeys {
+    pub public_key: String,
+    pub secret_key: String,
+    pub webhook_secret: String,
+}
+
+impl Config {
+    /// The Monokulo store from keys pasted by hand, if there are any.
+    pub fn monokulo_from_keys(&self) -> Option<Monokulo> {
+        let (url, keys) = (self.monokulo_url.as_ref()?, self.monokulo_keys.as_ref()?);
+        Some(Monokulo {
+            url: url.clone(),
+            api: format!("{url}/api/v1"),
+            public_key: keys.public_key.clone(),
+            secret_key: keys.secret_key.clone(),
+            webhook_secret: keys.webhook_secret.clone(),
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -135,37 +165,44 @@ impl Config {
             })
             .transpose()?;
 
-        let mk = [
-            "HANDICRAFTS_MONOKULO_URL",
+        let monokulo_url = var("HANDICRAFTS_MONOKULO_URL")
+            .map(|url| {
+                let url = url.trim_end_matches('/').to_string();
+                if url.starts_with("https://") || url.starts_with("http://") {
+                    Ok(url)
+                } else {
+                    Err(format!(
+                        "HANDICRAFTS_MONOKULO_URL must be a web address, not {url:?}"
+                    ))
+                }
+            })
+            .transpose()?;
+        let keys = [
             "HANDICRAFTS_MONOKULO_PUBLIC_KEY",
             "HANDICRAFTS_MONOKULO_SECRET_KEY",
             "HANDICRAFTS_MONOKULO_WEBHOOK_SECRET",
         ]
         .map(&var);
-        let monokulo = match mk {
-            [None, None, None, None] => None,
-            [Some(url), Some(pk), Some(sk), Some(whs)] => {
-                let url = url.trim_end_matches('/').to_string();
-                if !url.starts_with("https://") && !url.starts_with("http://") {
-                    return Err(format!(
-                        "HANDICRAFTS_MONOKULO_URL must be a web address, not {url:?}"
-                    ));
-                }
+        let monokulo_keys = match keys {
+            [None, None, None] => None,
+            [Some(pk), Some(sk), Some(whs)] => {
                 if !pk.starts_with("pk_") {
                     return Err("HANDICRAFTS_MONOKULO_PUBLIC_KEY must start with pk_".into());
                 }
                 if !sk.starts_with("sk_") {
                     return Err("HANDICRAFTS_MONOKULO_SECRET_KEY must start with sk_".into());
                 }
-                Some(Monokulo {
-                    url,
+                if monokulo_url.is_none() {
+                    return Err("Monokulo keys are set but HANDICRAFTS_MONOKULO_URL isn't".into());
+                }
+                Some(MonokuloKeys {
                     public_key: pk,
                     secret_key: sk,
                     webhook_secret: whs,
                 })
             }
             _ => {
-                return Err("Monokulo needs all four settings: address, public key, secret key and webhook signing secret".into());
+                return Err("Monokulo keys pasted by hand need all three: public key, secret key and webhook signing secret. Or connect the store at /admin/monokulo instead.".into());
             }
         };
 
@@ -200,7 +237,8 @@ impl Config {
                 bsb: var("HANDICRAFTS_BSB"),
                 account_number: var("HANDICRAFTS_ACCOUNT_NUMBER"),
             },
-            monokulo,
+            monokulo_url,
+            monokulo_keys,
             limits,
         })
     }
@@ -227,14 +265,28 @@ mod tests {
     fn defaults_work() {
         let c = cfg(&[]).unwrap();
         assert_eq!(c.listen.to_string(), "127.0.0.1:8082");
-        assert!(c.monokulo.is_none());
+        assert!(c.monokulo_url.is_none() && c.monokulo_keys.is_none());
         assert_eq!(c.limits.ip_10min, 3);
     }
 
     #[test]
-    fn monokulo_needs_all_four() {
-        let e = cfg(&[("HANDICRAFTS_MONOKULO_URL", "https://www.monokulo.com")]).unwrap_err();
-        assert!(e.contains("all four"), "{e}");
+    fn monokulo_address_alone_is_fine_keys_need_all_three() {
+        let c = cfg(&[("HANDICRAFTS_MONOKULO_URL", "https://www.monokulo.com/")]).unwrap();
+        assert_eq!(c.monokulo_url.as_deref(), Some("https://www.monokulo.com"));
+        assert!(c.monokulo_from_keys().is_none());
+        let e = cfg(&[
+            ("HANDICRAFTS_MONOKULO_URL", "https://www.monokulo.com"),
+            ("HANDICRAFTS_MONOKULO_SECRET_KEY", "sk_x"),
+        ])
+        .unwrap_err();
+        assert!(e.contains("all three"), "{e}");
+        let e = cfg(&[
+            ("HANDICRAFTS_MONOKULO_PUBLIC_KEY", "pk_x"),
+            ("HANDICRAFTS_MONOKULO_SECRET_KEY", "sk_x"),
+            ("HANDICRAFTS_MONOKULO_WEBHOOK_SECRET", "whsec"),
+        ])
+        .unwrap_err();
+        assert!(e.contains("HANDICRAFTS_MONOKULO_URL"), "{e}");
         let c = cfg(&[
             ("HANDICRAFTS_MONOKULO_URL", "https://www.monokulo.com/"),
             ("HANDICRAFTS_MONOKULO_PUBLIC_KEY", "pk_x"),
@@ -242,7 +294,8 @@ mod tests {
             ("HANDICRAFTS_MONOKULO_WEBHOOK_SECRET", "whsec"),
         ])
         .unwrap();
-        assert_eq!(c.monokulo.unwrap().url, "https://www.monokulo.com");
+        let m = c.monokulo_from_keys().unwrap();
+        assert_eq!(m.api, "https://www.monokulo.com/api/v1");
     }
 
     #[test]
