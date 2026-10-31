@@ -90,6 +90,7 @@ pub fn checkout_page(form: &CheckoutForm, error: Option<&str>) -> Markup {
     );
     p.scripts = html! {
         script src=(assets::url("js/fixi.js")) {}
+        script src=(assets::url("js/fixi-forms.js")) {}
         (shop_scripts(true))
         script src=(assets::url("js/checkout.js")) {}
     };
@@ -219,6 +220,7 @@ pub fn received_page(order: &Order, lines: &[PricedLine], emailed: bool) -> Mark
     );
     p.scripts = html! {
         script src=(assets::url("js/fixi.js")) {}
+        script src=(assets::url("js/fixi-forms.js")) {}
         (shop_scripts(true))
         script src=(assets::url("js/checkout.js")) {}
     };
@@ -452,6 +454,7 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView, refund_saved
         html! { meta name="robots" content="noindex"; meta name="referrer" content="no-referrer"; };
     p.scripts = html! {
         script src=(assets::url("js/fixi.js")) {}
+        script src=(assets::url("js/fixi-forms.js")) {}
         script src=(assets::url("js/cart.js")) {}
         script src=(assets::url("js/main.js")) {}
         @if let Some((mk_id, cfg)) = &monokulo_script {

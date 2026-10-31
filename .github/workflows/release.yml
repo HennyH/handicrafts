@@ -2,7 +2,7 @@
 # The same setup as Monokulo's openwrt.yml and pages.yml, cut down to one
 # package.
 #
-# Every push and pull request: the Rust tests, then the package for each
+# Every push and pull request: the Rust tests and the browser test, then the package for each
 # OpenWrt release and CPU architecture in the matrix, then the x86_64 package
 # installed and run inside OpenWrt's own image (scripts/test-openwrt.sh).
 #
@@ -52,9 +52,33 @@ jobs:
           if grep -E '^src/.*: (warning|error)' clippy.log; then exit 1; fi
       - run: cargo test --locked
 
+  browser:
+    # The whole flow in a real browser (scripts/test-browser.sh): checkout,
+    # admin, invoice, Monokulo connect, both ways of paying. It catches what
+    # the Rust tests can't, like how fixi actually sends a form.
+    name: browser test
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: scripts/test-browser.sh
+        env:
+          CHROME: /usr/bin/google-chrome
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-test
+          path: target/browser-test/
+
   build:
     name: openwrt package (${{ matrix.release }}, ${{ matrix.arch }})
-    needs: test
+    needs: [test, browser]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:

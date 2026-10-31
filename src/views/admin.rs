@@ -33,6 +33,7 @@ fn shell(title: &str, body: Markup) -> Markup {
                 }
                 (body)
                 script src=(assets::url("js/fixi.js")) {}
+                script src=(assets::url("js/fixi-forms.js")) {}
                 script src=(assets::url("js/admin.js")) {}
             }
         }
