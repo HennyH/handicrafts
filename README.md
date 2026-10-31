@@ -3,50 +3,65 @@
 A quirky, hand-drawn website for **Rachel's Handicrafts** — bespoke, local, ethical and sustainable
 textiles, made by hand in Perth, WA on a Bernina 930 Record.
 
-It's a plain static site (HTML/CSS/vanilla JS, no framework) hosted free on **GitHub Pages**. The
-product catalogue is a JSON file you edit directly, the cart lives in the browser (`localStorage`),
-and checkout generates a proper Order PDF that gets downloaded and handed to an email, ready to send.
+The shop is one small Rust program (axum, with pages written in maud and a little
+[fixi.js](https://github.com/bigskysoftware/fixi)) that runs on the shop's OpenWrt router behind its
+HTTPS reverse proxy. It serves the pages, takes orders into a SQLite database, emails the customer a
+copy and Rachel a notification, and gives each order a pay link for Monero (through
+[Monokulo](https://docs.monokulo.com)) or PayID / bank transfer. Rachel keeps track of orders at
+`/admin`. It's packaged as one OpenWrt `.apk` with its LuCI settings page inside, built the same way
+as Monokulo's.
 
-The pages are generated from templates by a small Rust program (`cargo run`) so the header, nav and
-footer live in **one** file instead of being copy-pasted into four and slowly drifting apart. The
-generated HTML is never committed — CI builds and publishes it, so what's live always matches the
-templates.
+The product catalogue and the recipes are still JSON files you edit directly, and the cart still
+lives in the browser (`localStorage`).
 
 ## Structure
 
 ```
-templates/base.html  Shared shell: <head>, header/nav, footer. Edit the nav ONCE, here.
-templates/index.html  Home page body (hero, "why it's different", featured products)
-templates/shop.html    Full product grid
-templates/cart.html    Cart: quantities, remove, subtotal
-templates/checkout.html Customer details form → Order PDF → email handoff
-templates/recipes.html  Recipe index — a card per recipe, built from data/recipes.json
-templates/recipe.html   ONE template for every recipe page (rendered once per entry, see below)
-templates/_donation.html Monero donation disclosure, {% include %}d into recipe.html
+src/main.rs          Starts the server; also `hash-password`, `check`, `send-test-mail`
+src/config.rs        Settings, from HANDICRAFTS_* environment variables (LuCI fills them in)
+src/catalog.rs       Reads data/products.json and data/recipes.json; prices orders
+src/views/           The pages, in maud:
+  layout.rs            the shared <head>, header and footer — edit the nav ONCE, here
+  shop.rs              home, shop, cart, recipes, one recipe, the donation panel
+  checkout.rs          checkout, "order received", the pay page
+  admin.rs             /admin
+src/web/             The routes: shop.rs (pages, placing orders), pay.rs, webhook.rs (Monokulo),
+                     admin.rs (Basic auth, CSRF); tests.rs runs whole orders end to end
+src/db.rs            SQLite: orders, their timeline, Monokulo payments, the email outbox
+src/orders.rs        Order statuses and which changes are allowed
+src/emails.rs        The emails, as HTML and plain text
+src/mail.rs          Sending: SMTP, or a Tuta account through Tern's tern-tuta crate
+src/outbox.rs        Sends queued emails, retrying when the mail server is down
+src/monokulo.rs      Monokulo: making payments, checking webhook signatures
+src/invoice.rs       The Invoice button's email draft (.eml) from the template
+src/ratelimit.rs     Spam limits and the client's real IP behind the proxy
+src/assets.rs        css/, js/, assets/ and data/products.json, compiled into the binary
 
-src/main.rs          The build: renders templates/ + copies static files into dist/
-Cargo.toml           Dependencies: minijinja (templates) + serde_json (reads recipes.json)
-dist/                Generated output — gitignored, never edited by hand
+css/style.css        The shop's styling (hand-drawn/quirky theme, one file)
+css/admin.css        /admin's plain styling
+js/products.js       Loads data/products.json, renders product cards
+js/cart.js           Cart logic (localStorage)
+js/cart-page.js      Renders cart.html
+js/checkout.js       Fills the checkout's summary and sends the cart with the order
+js/pay.js            Mounts Monokulo's checkout on the pay page
+js/admin.js          Small /admin helpers
+js/fixi.js           fixi.js 0.9.4, vendored
+js/main.js           Shared bits: mobile nav, footer year, nav highlighting, copy buttons
 
-css/style.css        All styling (hand-drawn/quirky theme, one file)
-js/products.js        Loads data/products.json, renders product cards
-js/cart.js            Cart logic (localStorage)
-js/cart-page.js        Renders cart.html
-js/checkout.js         Order building, PDF generation (jsPDF), mailto handoff
-js/main.js             Shared bits: mobile nav, footer year, nav "active" link highlighting
+data/products.json   ← THE FILE YOU EDIT to add/change/remove products
+data/recipes.json    ← THE FILE YOU EDIT to add/change/remove recipes
 
-data/products.json     ← THE FILE YOU EDIT to add/change/remove products
-data/recipes.json      ← THE FILE YOU EDIT to add/change/remove recipes
-data/config.json       Business name, email, tagline, etc.
+openwrt/             The OpenWrt package: Makefile, init script, UCI defaults, LuCI page, rpcd backend
+scripts/             build-openwrt.sh (the .apk) and test-openwrt.sh (installs it in OpenWrt)
 
-assets/doodles/        Hand-drawn SVG illustrations (logo, sewing machine, icons)
-assets/products/       Hand-drawn SVG placeholder art for each product
-assets/art/            Rachel's own scanned sketches/watercolours, used as background decor
-assets/art/paper_bg_*  The paper-grain background tile: _40 is the small one that carries the
-                       first paint, _100 the full-res scan js/bg-swap.js upgrades to
-
-art/                    Full-resolution originals of the scans (gitignored — see below)
+assets/doodles/      Hand-drawn SVG illustrations (logo, sewing machine, icons)
+assets/products/     Product photos
+assets/art/          Rachel's own scanned sketches/watercolours, used as background decor
 ```
+
+Email through Tuta uses [Tern](https://github.com/OceanEilonwy/tern)'s `tern-tuta` crate (pinned to a
+commit in `Cargo.toml`), which signs in with Tuta's own SDK. Tern and the SDK are GPL-3.0 and are
+linked into the binary, so the program is GPL-3.0 too.
 
 ## Editing the product list
 
@@ -88,7 +103,7 @@ natural home for them); give both and the image is what shows, with the hex behi
 fallback. A swatch can also carry its own `"materials"` string for fabrics whose composition differs
 from the product default — that line then replaces the card's Materials text whenever that fabric is
 selected, the card gets a "varies by fabric" flag so shoppers know to check it, and the chosen
-fabric's composition is carried through to the cart, the order PDF and the order email. Set `"comingSoon": true` on anything you're
+fabric's composition is carried through to the cart, the saved order, the order emails and the invoice. Set `"comingSoon": true` on anything you're
 still making but want listed — the card shows as normal (price, swatches and all) with a greyed-out
 "Coming soon!" in place of the Add to Cart button, and it can't reach the cart or an order. Set
 `"price": null` for something like a
@@ -98,7 +113,7 @@ at a `.jpg`/`.png` in `assets/products/` (any image works, square-ish photos loo
 photos of the same piece, use an `"images"` array instead — the card then gets ‹ › arrows to step
 through them, a ⤢ button that opens the photo full-size in a dialog (arrow keys and Esc work there),
 and a small "1 / 3" counter. The first photo in the list is the one used everywhere else (cart rows,
-the order PDF), so lead with your best shot.
+the order pages), so lead with your best shot.
 
 ### Image sizes (important when adding photos)
 
@@ -138,15 +153,13 @@ resolution in the lightbox, and one with no `.webp` at all falls back to the ori
 sizes matter: the full set of card photos is 507KB, where shipping the originals to every visitor
 was 2.2MB. `.svg` icons and doodles don't need any of this.
 
-`data/config.json` holds the business-wide details — most importantly `"email"`, which is where the
-checkout page addresses its email handoff. **Update that to your real inbox before you go live.**
 
 ## Editing recipes
 
 Open `data/recipes.json` — a plain JSON array, one object per recipe, same pattern as
-`data/products.json`. The build (`cargo run`) turns each entry into its own page,
-`recipe-<id>.html`, from the single `templates/recipe.html` template — add a recipe here and a
-page for it appears automatically; there's no HTML to write by hand.
+`data/products.json`. The shop turns each entry into its own page, `recipe-<id>.html`, from the
+one recipe template (`recipe()` in `src/views/shop.rs`) — add a recipe here, rebuild, and a page for
+it appears automatically; there's no HTML to write by hand.
 
 ```json
 {
@@ -167,8 +180,8 @@ page for it appears automatically; there's no HTML to write by hand.
 }
 ```
 
-`ingredients` and `method` are each a list of raw HTML strings rendered as-is (via minijinja's
-`|safe` filter), not plain text — that's deliberate, not an oversight, and it's what lets a single
+`ingredients` and `method` are each a list of raw HTML strings rendered as-is (maud's
+`PreEscaped`), not plain text — that's deliberate, not an oversight, and it's what lets a single
 ingredient line mix quantities, fractions and free text however it needs to. Wrap anything you want
 visually called out — a temperature, a time, a quantity — in `<span class="number">...</span>`; the
 CSS turns those into the gold pills in the method list and bolds them in the ingredients list. Since
@@ -179,62 +192,67 @@ Ingredients get a click-to-tick checkbox automatically — that's pure CSS (`:ch
 selector), no JavaScript, and nothing persists between visits, matching how the original recipe site
 this was migrated from worked.
 
-The Monero donation panel (QR code + address) is one shared partial,
-`templates/_donation.html` — the address lives there once, not per-recipe; set `"donation": true`
+The Monero donation panel (QR code + address) is one shared piece, `donation()` in
+`src/views/shop.rs` — the address lives there once, not per-recipe; set `"donation": true`
 on any recipe that should show it, rather than editing the address in multiple places.
+
 
 ## Running it locally
 
-Build the site, then serve the `dist/` folder it produces:
+```bash
+HANDICRAFTS_MAIL=log cargo run
+```
+
+Then open `http://localhost:8082`. With `HANDICRAFTS_MAIL=log`, emails are printed to the terminal
+instead of sent. The database goes in `data-dev/` (gitignored). In a debug build CSS, JS and images
+are read from disk, so edits show up on reload; Rust changes (pages, routes) need the `cargo run`
+again. You need Rust — install it from [rustup.rs](https://rustup.rs) if `cargo` isn't found.
+
+To try `/admin`, make a password hash and pass it in:
 
 ```bash
-cargo run
+echo 'a long password' | cargo run -q -- hash-password
 ```
 
 ```bash
-python3 -m http.server 8000 --directory dist
+HANDICRAFTS_MAIL=log HANDICRAFTS_ADMIN_PASSWORD_HASH='<the hash>' cargo run
 ```
 
-Then open `http://localhost:8000`. Re-run `cargo run` after editing anything in `templates/` — the
-browser is serving `dist/`, so template edits don't show up until you rebuild. Editing `css/`, `js/`
-or `data/` only needs a rebuild to copy the change across (it's incremental, so it's near-instant).
+`cargo run -- --help` lists every setting. `cargo test` runs the tests, including whole orders end to
+end against a fake Monokulo.
 
-You need Rust for this — install it from [rustup.rs](https://rustup.rs) if `cargo` isn't found.
+## How orders and payments work
 
-Serving through a local server rather than double-clicking a file matters because the product list
-is loaded via `fetch()`, which browsers block on `file://` URLs. That restriction goes away once
-deployed, since Pages serves over `https://`.
+1. **Checkout.** The checkout form posts the cart to `/orders`. The server prices it from
+   `data/products.json` (the browser's prices are never trusted), saves it as **New**, and queues two
+   emails: a copy for the customer and a notification for Rachel. The customer sees the "order
+   received" page. Nothing is charged.
+2. **Admin.** At `/admin` (HTTP Basic auth, username and password set in LuCI) Rachel sees each order,
+   adds comments, and records its status: New → Invoiced or Rejected → Paid → Dispatched → Completed.
+   Invoiced, Paid, Dispatched and Completed need **Accepted** ticked. The app is a record: Rachel does
+   the work (emails, calls, posting) and writes down what happened.
+3. **Invoice.** The Invoice button downloads an email draft (`.eml`) that opens unsent in Outlook,
+   Thunderbird or Apple Mail, from the template at `/admin/settings`. The template must contain
+   `{{ pay_link }}`; `{{ bank_ref }}` is the order's short bank reference (5 characters, like
+   `K7P4Q`). Rachel sends it, then sets the order to Invoiced.
+4. **Paying.** The pay link opens `/pay/<secret>`:
+   - **Monero** (preferred): the shop makes a Monokulo order for the AUD total with the store's secret
+     key and embeds Monokulo's checkout. When Monokulo sends its signed `order.paid` webhook to
+     `/webhooks/monokulo`, the order moves to **Paid** on its own, with a timeline comment holding the
+     amount, rate and the customer's refund address. A payment whose amount doesn't match never
+     marks an order paid. If Monokulo can't price in AUD, the customer is told and offered bank
+     transfer, and Rachel is emailed and sees a banner on `/admin`.
+   - **PayID / bank transfer**: the page shows the details from LuCI and the short reference. "I've
+     sent the payment" emails Rachel but changes nothing: she checks the bank and sets Paid herself.
 
-## How checkout → PDF → email works
+Emails go through an outbox in the database: if the mail server or Tuta is down, the order is still
+saved and the email retries for about a day. Failed emails show on `/admin` with a Resend button.
 
-This site has no backend or database, so there's no live payment processor and no server that can
-send email on its own — it's an **order request** flow, not a checkout with card payments:
-
-1. The customer fills in their details on `checkout.html` and submits.
-2. The browser generates a branded **Order PDF** (via [jsPDF](https://github.com/parallax/jsPDF),
-   loaded from a CDN) and downloads it as `order-<order-number>.pdf`.
-3. It then shows a button that opens the customer's email client with a `mailto:` link — addressed
-   to the business email from `config.json`, subject and body pre-filled with the order details.
-
-The one limitation: **browsers can't attach files to a `mailto:` link** (there's no web API for it —
-it's a long-standing security restriction). The confirmation screen tells the customer to attach the
-PDF that just downloaded before hitting send. It's a two-click extra step, but it means the whole
-site can stay static and free to host.
-
-If down the track you want it fully automatic (PDF emailed with zero manual steps), that needs
-*something* to actually own an SMTP connection or an email API — options, roughly easiest to hardest:
-
-- **EmailJS** (or similar) — a client-side service that can send templated emails, including small
-  attachments, straight from JavaScript. Free tier is limited but no server needed at all.
-- **A tiny serverless function** (Netlify/Vercel/Cloudflare Functions) that receives the PDF and
-  emails it via something like Resend, Postmark, or SendGrid. Still deploys alongside a static
-  frontend, but it's no longer "just GitHub Pages."
-- **Your own backend** with a real order database, payments (Stripe etc.), and email — a proper
-  e-commerce build, well beyond a static site.
-
-None of that is wired up here on purpose, to keep hosting free and dependency-free — but the order
-data (`buildOrder()` in `js/checkout.js`) is already structured so it'd be easy to POST it somewhere
-instead of just turning it into a PDF, if you outgrow the mailto approach later.
+**Spam limits:** 3 orders per IP in 10 minutes and 10 a day; at most 3 order emails to one address a
+day (after that the order is still taken, without the customer's copy); 40 orders a day for the whole
+shop. There's also a hidden honeypot field and a minimum time on the checkout page. The client's IP
+comes from the reverse proxy's `X-Forwarded-For`, believed only from the trusted proxy addresses.
+All of these are set in LuCI.
 
 ## The background artwork
 
@@ -274,33 +292,62 @@ usually `overflow: hidden`) for the absolute positioning to stay contained — `
 `.page-header` and `.confetti-band` already have this set up as examples. All `.art-decor` pieces
 hide automatically under 700px width to keep things uncluttered on mobile.
 
-## Deploying to GitHub Pages
 
-Deployment runs through GitHub Actions (`.github/workflows/deploy.yml`): every push to `master`
-builds the templates with Rust and publishes `dist/`.
+## Installing on the router
 
-**This requires one setting on GitHub:** **Settings → Pages → Build and deployment → Source** must
-be set to **"GitHub Actions"** (not "Deploy from a branch"). The repo no longer contains any
-committed `.html` at its root, so with the old branch-based setting Pages would find nothing to
-serve and the site would 404.
+The router is the GL.iNet Flint 2 that runs Monokulo (OpenWrt 25.12, `aarch64_cortex-a53`). CI builds
+the package on every push (`.github/workflows/release.yml`); to build it yourself, with Docker:
 
-After that, every `git push` redeploys automatically — watch it under the repo's **Actions** tab.
-The custom domain keeps working because `CNAME` is copied into `dist/` as part of the build.
+```bash
+scripts/build-openwrt.sh
+```
+
+That makes `dist/handicrafts-<version>.apk`, signed with the same key as Monokulo's and Kringle's
+packages (`openwrt/keys/monokulo.pem`), so a router that has Monokulo trusts it already. Copy it over
+and install it:
+
+```bash
+scp dist/handicrafts-*.apk root@router:/tmp/
+```
+
+```bash
+ssh root@router apk add /tmp/handicrafts-*.apk
+```
+
+Then in LuCI, **Services › Handicrafts**:
+
+1. **General**: the shop's address (`https://www.rachelshandicrafts.com`), the admin username and
+   password, and the admin email.
+2. **Email**: "From a Tuta account" with the account's address and password (or SMTP), and **Send
+   from**: the account's own address, or one of its aliases such as `hello@rachelshandicrafts.com`.
+   The sender's name is the one set in Tuta. Accounts with two-factor sign-in can't be used, so use
+   a separate sending account without it. Save & Apply, then **Send test email**.
+3. **Payments**: PayID and bank details; the Monokulo address, public key and secret key. In Monokulo,
+   add a webhook in the store's settings pointing at
+   `https://www.rachelshandicrafts.com/webhooks/monokulo`, and paste the signing secret it shows.
+4. Point the reverse proxy at `127.0.0.1:8082`.
+
+Secrets (the admin password's hash, mail passwords, Monokulo keys) are kept in root-only files in
+`/etc/handicrafts/secrets/`, never in UCI. Settings, secrets and the database (`/srv/handicrafts`)
+survive firmware upgrades. `logread -e handicrafts` shows the log; a bad setting stops the shop at
+start-up with the reason there and on the LuCI page.
+
+**CI and the apk repository.** CI needs the repository secret `APK_SIGNING_KEY` (the private key
+that signs Monokulo's packages). Every push to master also publishes the signed apk repository on
+GitHub Pages, so the router can `apk upgrade`. Pages used to serve the shop itself, so the first push
+replaces the old static shop there: point the domain at the router and remove the custom domain under
+Settings › Pages before that.
 
 ## Making a change later
 
-This folder is already a git repository (`git log` to see history). The normal flow:
-
 ```bash
-# edit data/products.json, templates/, or any file
+# edit data/products.json, src/, css/, or any file
 git add -A
 git commit -m "Add new scarf print to the shop"
 git push
 ```
 
-CI rebuilds and redeploys a minute or so after every push to `master`. You don't need to run
-`cargo run` before committing — that's only for previewing locally, since `dist/` is never
-committed and CI builds it fresh from the templates.
-
-If you change `css/style.css`, also bump `CSS_V` in `src/main.rs` — it's the `?v=` cache-buster on
-the stylesheet link, and without a bump returning visitors keep being served the copy they cached.
+CI tests it and builds the package. Install the new `.apk` on the router (or `apk upgrade` once the
+repository is published); the package restarts the shop on upgrade. Stylesheets and scripts are linked
+with a hash of their contents, so returning visitors get the new version without any manual
+cache-busting.

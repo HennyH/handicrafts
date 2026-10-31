@@ -8,7 +8,10 @@ node_modules/
 # versions actually used by the site live in assets/art/ and are tracked.
 /art/
 
-# Build output. The site is generated from templates/ by `cargo run`; CI does
-# the same and publishes dist/ to Pages, so neither is ever committed.
+# Build output: target/ from cargo, dist/ from scripts/build-openwrt.sh.
 /dist/
 /target/
+
+# OpenWrt build output and the binary dropped in for the SDK.
+/openwrt/handicrafts/files/handicrafts
+/data-dev/

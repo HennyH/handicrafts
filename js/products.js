@@ -6,12 +6,6 @@ async function loadProducts() {
   return res.json();
 }
 
-async function loadConfig() {
-  const res = await fetch("data/config.json", { cache: "no-store" });
-  if (!res.ok) throw new Error("Could not load data/config.json");
-  return res.json();
-}
-
 function formatPrice(amount, currency = "AUD") {
   return new Intl.NumberFormat("en-AU", { style: "currency", currency }).format(amount);
 }

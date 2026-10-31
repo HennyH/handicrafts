@@ -1,0 +1,14 @@
+{
+	"admin/services/handicrafts": {
+		"title": "Handicrafts",
+		"order": 91,
+		"action": {
+			"type": "view",
+			"path": "handicrafts"
+		},
+		"depends": {
+			"acl": [ "luci-app-handicrafts" ],
+			"uci": { "handicrafts": true }
+		}
+	}
+}

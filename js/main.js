@@ -11,6 +11,23 @@ document.addEventListener("click", (e) => {
   });
 });
 
+// Copy buttons (order number, bank details on the pay page).
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-copy]");
+  if (!btn) return;
+  const text = btn.getAttribute("data-copy");
+  const old = btn.textContent;
+  const done = () => {
+    btn.textContent = "Copied";
+    setTimeout(() => (btn.textContent = old), 1200);
+  };
+  try {
+    navigator.clipboard.writeText(text).then(done, () => window.prompt("Copy this:", text));
+  } catch (err) {
+    window.prompt("Copy this:", text);
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
   const toggle = document.querySelector(".nav__toggle");
   const menu = document.querySelector(".nav__menu");

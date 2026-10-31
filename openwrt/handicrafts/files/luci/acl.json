@@ -1,0 +1,17 @@
+{
+	"luci-app-handicrafts": {
+		"description": "Grant access to the Handicrafts shop's settings",
+		"read": {
+			"ubus": {
+				"handicrafts": [ "status", "check" ]
+			},
+			"uci": [ "handicrafts" ]
+		},
+		"write": {
+			"ubus": {
+				"handicrafts": [ "set_secret", "clear_secret", "set_password", "test_mail", "restart" ]
+			},
+			"uci": [ "handicrafts" ]
+		}
+	}
+}
