@@ -143,7 +143,9 @@ const methods = {
 		args: { to: 'to' },
 		call: function(request) {
 			const to = request.args.to;
-			if (type(to) != 'string' || !match(to, /^[^\s@'"]+@[^\s@'"]+\.[^\s@'"]+$/))
+			// ucode regexes are POSIX: inside [...] \s is a backslash and an
+			// "s", so the class must be spelled [:space:].
+			if (type(to) != 'string' || !match(to, /^[^[:space:]@'"]+@[^[:space:]@'"]+\.[^[:space:]@'"]+$/))
 				return { ok: false, output: 'That isn\'t an email address.' };
 			const sent = run(`/etc/init.d/handicrafts test_mail ${shell_quote(to)}`);
 			return { ok: sent.code == 0, output: sent.output };
