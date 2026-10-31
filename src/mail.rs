@@ -419,7 +419,9 @@ mod tests {
         };
         assert!(tuta("not an address").is_err());
         match tuta("hello@rachelshandicrafts.com").unwrap() {
-            Transport::Tuta(t) => assert_eq!(t.from.as_deref(), Some("hello@rachelshandicrafts.com")),
+            Transport::Tuta(t) => {
+                assert_eq!(t.from.as_deref(), Some("hello@rachelshandicrafts.com"))
+            }
             _ => panic!("expected Tuta"),
         }
     }
