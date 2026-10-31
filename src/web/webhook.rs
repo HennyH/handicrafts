@@ -21,7 +21,7 @@ pub async fn monokulo(
     headers: HeaderMap,
     body: Bytes,
 ) -> Response {
-    let Some(cfg) = app.monokulo.as_ref().map(|c| c.cfg().clone()) else {
+    let Some(cfg) = app.monokulo().map(|c| c.cfg().clone()) else {
         return StatusCode::NOT_FOUND.into_response();
     };
     let sig = headers
@@ -39,6 +39,14 @@ pub async fn monokulo(
         }
     };
 
+    if event.event == "webhook.test" {
+        // From "Send a test webhook": shown on /admin/monokulo.
+        let _ = app
+            .db
+            .set_setting("monokulo_last_test", util::now().to_string())
+            .await;
+        return StatusCode::OK.into_response();
+    }
     let Some(number) = event.merchant_order_id.clone() else {
         // Not one of ours (a test delivery, or an order made elsewhere).
         return StatusCode::OK.into_response();

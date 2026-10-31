@@ -73,10 +73,11 @@ settings() {
 	opt HANDICRAFTS_BANK_ACCOUNT_NAME payments bank_account_name
 	opt HANDICRAFTS_BSB payments bsb
 	opt HANDICRAFTS_ACCOUNT_NUMBER payments account_number
-	# Monero is on once a Monokulo secret is set; the shop then needs all
-	# four Monokulo settings and says which is missing.
+	# The store is normally connected at /admin/monokulo, which needs only
+	# the address. Keys pasted by hand count once a Monokulo secret is set;
+	# the shop then needs all three and says which is missing.
+	opt HANDICRAFTS_MONOKULO_URL payments monokulo_url
 	if [ -s "$SECRETS_DIR/HANDICRAFTS_MONOKULO_SECRET_KEY" ] || [ -s "$SECRETS_DIR/HANDICRAFTS_MONOKULO_WEBHOOK_SECRET" ]; then
-		opt HANDICRAFTS_MONOKULO_URL payments monokulo_url
 		opt HANDICRAFTS_MONOKULO_PUBLIC_KEY payments monokulo_public_key
 	fi
 

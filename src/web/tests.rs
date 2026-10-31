@@ -26,6 +26,10 @@ struct Fake {
     /// What the fake Monokulo answers to POST /api/v1/orders.
     answer: Mutex<(u16, serde_json::Value)>,
     calls: Mutex<Vec<serde_json::Value>>,
+    /// The Authorization header of each order and test-webhook call.
+    auth: Mutex<Vec<String>>,
+    /// Bodies sent to the plugin connect /finish.
+    finishes: Mutex<Vec<serde_json::Value>>,
 }
 
 async fn fake_monokulo() -> (String, Arc<Fake>) {
@@ -35,13 +39,57 @@ async fn fake_monokulo() -> (String, Arc<Fake>) {
             serde_json::json!({ "order_id": "order_abc", "xmr_amount_piconero": 121_916_000_000i64, "expires_at": util::now() + 900, "status": "pending" }),
         )),
         calls: Mutex::new(vec![]),
+        auth: Mutex::new(vec![]),
+        finishes: Mutex::new(vec![]),
     });
     let f = fake.clone();
-    let app = Router::new().route(
+    let (f2, f3) = (fake.clone(), fake.clone());
+    let bearer = |h: &axum::http::HeaderMap| {
+        h.get(header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("")
+            .to_string()
+    };
+    let app = Router::new()
+        .route(
+            "/plugins/connect/handicrafts/finish",
+            post(move |body: String| {
+                let f = f2.clone();
+                async move {
+                    let body: serde_json::Value = serde_json::from_str(&body).unwrap();
+                    let ok = body["token"] == "conn_good";
+                    f.finishes.lock().unwrap().push(body);
+                    if !ok {
+                        return (
+                            StatusCode::UNAUTHORIZED,
+                            [(header::CONTENT_TYPE, "application/problem+json")],
+                            r#"{"detail":"This connect code is unknown, already used or expired. Start connecting again.","status":401}"#.to_string(),
+                        );
+                    }
+                    (
+                        StatusCode::OK,
+                        [(header::CONTENT_TYPE, "application/json")],
+                        serde_json::json!({ "api": "/api/v1", "public_key": "pk_connected", "secret_token": "sk_connected", "webhook_signing_secret": "whsec_connected" }).to_string(),
+                    )
+                }
+            }),
+        )
+        .route(
+            "/api/v1/webhook-tests",
+            post(move |headers: axum::http::HeaderMap| {
+                let f = f3.clone();
+                async move {
+                    f.auth.lock().unwrap().push(bearer(&headers));
+                    (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], r#"{"delivered":true}"#.to_string())
+                }
+            }),
+        )
+        .route(
         "/api/v1/orders",
-        post(move |body: String| {
+        post(move |headers: axum::http::HeaderMap, body: String| {
             let f = f.clone();
             async move {
+                f.auth.lock().unwrap().push(bearer(&headers));
                 f.calls
                     .lock()
                     .unwrap()
@@ -67,6 +115,11 @@ struct Shop {
 }
 
 async fn shop(monokulo_url: Option<String>) -> Shop {
+    shop_with(monokulo_url, true).await
+}
+
+/// `keys`: also paste Monokulo keys "into LuCI".
+async fn shop_with(monokulo_url: Option<String>, keys: bool) -> Shop {
     let hash = {
         use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
         let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
@@ -84,6 +137,8 @@ async fn shop(monokulo_url: Option<String>) -> Shop {
     ];
     if let Some(u) = monokulo_url {
         vars.push(("HANDICRAFTS_MONOKULO_URL", u));
+    }
+    if keys && vars.iter().any(|(k, _)| *k == "HANDICRAFTS_MONOKULO_URL") {
         vars.push(("HANDICRAFTS_MONOKULO_PUBLIC_KEY", "pk_test".into()));
         vars.push(("HANDICRAFTS_MONOKULO_SECRET_KEY", "sk_test".into()));
         vars.push(("HANDICRAFTS_MONOKULO_WEBHOOK_SECRET", "whsec".into()));
@@ -95,6 +150,7 @@ async fn shop(monokulo_url: Option<String>) -> Shop {
         Db::memory(),
         Arc::new(Transport::Log(Default::default())),
     ));
+    app.refresh_monokulo().await;
     let peer: SocketAddr = "203.0.113.5:4000".parse().unwrap();
     let router = router(app.clone()).layer(MockConnectInfo(peer));
     Shop { app, router }
@@ -499,4 +555,167 @@ async fn pages_render() {
         s.get("/pay/aaaaaaaaaaaaaaaaaaaaaaaa").await.0,
         StatusCode::NOT_FOUND
     );
+}
+
+#[tokio::test]
+async fn connect_flow_fetches_the_keys_and_takes_over() {
+    let (url, fake) = fake_monokulo().await;
+    let s = shop_with(Some(url.clone()), false).await;
+    let o = s.place_order().await;
+    s.invoice(o.id).await;
+
+    // Not connected: Monero isn't offered, bank transfer is.
+    let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
+    assert!(!page.contains("monokulo-client.js") && page.contains(&o.bank_ref));
+    let (_, admin) = s.admin_get("/admin/monokulo").await;
+    assert!(admin.contains("Not connected") && admin.contains("Connect to Monokulo"));
+
+    // Connect: off to Monokulo with a nonce and the way back.
+    let csrf = s.csrf_for(o.id).await;
+    let (st, _, h) = s
+        .post("/admin/monokulo/connect", &[("csrf", &csrf)], true)
+        .await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    let to = h
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(to.starts_with(&format!("{url}/plugins/connect/handicrafts?site_url=https%3A%2F%2Fshop.example&return_url=https%3A%2F%2Fshop.example%2Fadmin%2Fmonokulo%2Freturn&nonce=")), "{to}");
+    let nonce = to
+        .split("nonce=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+
+    // A return with someone else's nonce is refused, and spends the nonce.
+    let (st, body) = s
+        .admin_get("/admin/monokulo/return?token=conn_good&nonce=forged")
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(fake.finishes.lock().unwrap().is_empty());
+    let (st, _) = s
+        .admin_get(&format!(
+            "/admin/monokulo/return?token=conn_good&nonce={nonce}"
+        ))
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY, "the nonce works once");
+
+    // Again, properly.
+    let (_, _, h) = s
+        .post("/admin/monokulo/connect", &[("csrf", &csrf)], true)
+        .await;
+    let to = h
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let nonce = to
+        .split("nonce=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, body) = s
+        .admin_get(&format!(
+            "/admin/monokulo/return?token=conn_good&nonce={nonce}"
+        ))
+        .await;
+    assert_eq!(st, StatusCode::SEE_OTHER, "{body}");
+    let finish = fake.finishes.lock().unwrap()[0].clone();
+    assert_eq!(finish["token"], "conn_good");
+    assert_eq!(
+        finish["webhook_url"],
+        "https://shop.example/webhooks/monokulo"
+    );
+    let (_, admin) = s.admin_get("/admin/monokulo").await;
+    assert!(
+        admin.contains("Connected") && admin.contains("pk_connected"),
+        "{admin}"
+    );
+
+    // The connected keys are the ones used.
+    let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
+    assert!(page.contains("pk_connected"));
+    assert_eq!(
+        fake.auth.lock().unwrap().last().unwrap(),
+        "Bearer sk_connected"
+    );
+
+    // Its webhooks are verified with the secret the connection gave.
+    let ev = serde_json::json!({
+        "event_id": "evt_c1", "event": "order.paid", "order_id": "order_abc",
+        "merchant_order_id": o.number, "amount": "105.00", "currency": "AUD"
+    });
+    assert_eq!(
+        s.webhook(&ev, "whsec").await,
+        StatusCode::UNAUTHORIZED,
+        "the old secret no longer works"
+    );
+    assert_eq!(s.webhook(&ev, "whsec_connected").await, StatusCode::OK);
+    assert_eq!(
+        s.app.db.order(o.id).await.unwrap().unwrap().status,
+        crate::orders::Status::Paid
+    );
+
+    // The test webhook button, and a test delivery arriving.
+    let (st, _, _) = s
+        .post("/admin/monokulo/test", &[("csrf", &csrf)], true)
+        .await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert_eq!(
+        fake.auth.lock().unwrap().last().unwrap(),
+        "Bearer sk_connected"
+    );
+    let test = serde_json::json!({ "api_version": 2, "event_id": "evt_t1", "event": "webhook.test", "created_at": 1 });
+    assert_eq!(s.webhook(&test, "whsec_connected").await, StatusCode::OK);
+    let (_, admin) = s.admin_get("/admin/monokulo").await;
+    assert!(admin.contains("Last test webhook received"), "{admin}");
+
+    // Disconnect: Monero is off again.
+    let (st, _, _) = s
+        .post("/admin/monokulo/disconnect", &[("csrf", &csrf)], true)
+        .await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert!(s.app.monokulo().is_none());
+}
+
+#[tokio::test]
+async fn a_bad_connect_code_says_why() {
+    let (url, _) = fake_monokulo().await;
+    let s = shop_with(Some(url), false).await;
+    let o = s.place_order().await;
+    let csrf = s.csrf_for(o.id).await;
+    let (_, _, h) = s
+        .post("/admin/monokulo/connect", &[("csrf", &csrf)], true)
+        .await;
+    let to = h
+        .get(header::LOCATION)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let nonce = to
+        .split("nonce=")
+        .nth(1)
+        .unwrap()
+        .split('&')
+        .next()
+        .unwrap()
+        .to_string();
+    let (st, body) = s
+        .admin_get(&format!(
+            "/admin/monokulo/return?token=conn_used&nonce={nonce}"
+        ))
+        .await;
+    assert_eq!(st, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body.contains("already used or expired"), "{body}");
+    assert!(s.app.monokulo().is_none());
 }

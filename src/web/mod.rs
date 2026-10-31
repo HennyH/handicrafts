@@ -32,7 +32,8 @@ pub struct App {
     pub db: Db,
     pub catalog: Catalog,
     pub mail: Arc<Transport>,
-    pub monokulo: Option<monokulo::Client>,
+    /// The Monokulo store Monero goes through, if any: see `refresh_monokulo`.
+    monokulo: std::sync::RwLock<Option<Arc<monokulo::Client>>>,
     /// Wakes the outbox sender when mail is queued.
     pub outbox: Arc<tokio::sync::Notify>,
     /// Random per start; admin forms carry an HMAC of it.
@@ -49,19 +50,53 @@ pub type State = axum::extract::State<Arc<App>>;
 
 impl App {
     pub fn new(cfg: Config, db: Db, mail: Arc<Transport>) -> App {
-        let monokulo = cfg.monokulo.clone().map(monokulo::Client::new);
+        let monokulo = cfg
+            .monokulo_from_keys()
+            .map(|m| Arc::new(monokulo::Client::new(m)));
         App {
             cfg,
             db,
             catalog: Catalog::load(),
             mail,
-            monokulo,
+            monokulo: std::sync::RwLock::new(monokulo),
             outbox: Default::default(),
             csrf_secret: rand::random(),
             admin_failures: Window::new(15 * 60, 5),
             admin_ok: Default::default(),
             monokulo_starts: Window::new(3600, 6),
         }
+    }
+
+    /// The Monokulo client, if Monero is set up.
+    pub fn monokulo(&self) -> Option<Arc<monokulo::Client>> {
+        self.monokulo
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+
+    /// Where the Monokulo keys come from now.
+    pub async fn monokulo_source(&self) -> MonokuloSource {
+        match self.db.monokulo_connection().await {
+            Ok(Some(c)) if Some(&c.url) == self.cfg.monokulo_url.as_ref() => {
+                MonokuloSource::Connected(c)
+            }
+            _ if self.cfg.monokulo_from_keys().is_some() => MonokuloSource::Keys,
+            _ => MonokuloSource::None,
+        }
+    }
+
+    /// Pick up the store connected at /admin/monokulo (it wins), or else the
+    /// keys pasted into LuCI. A connection to a different Monokulo than the
+    /// one now set in LuCI is ignored.
+    pub async fn refresh_monokulo(&self) {
+        let cfg = match self.monokulo_source().await {
+            MonokuloSource::Connected(c) => Some(c),
+            MonokuloSource::Keys => self.cfg.monokulo_from_keys(),
+            MonokuloSource::None => None,
+        };
+        let client = cfg.map(|c| Arc::new(monokulo::Client::new(c)));
+        *self.monokulo.write().unwrap_or_else(|e| e.into_inner()) = client;
     }
 
     pub fn client_ip(&self, peer: SocketAddr, headers: &HeaderMap) -> String {
@@ -79,6 +114,14 @@ impl App {
         }
         self.outbox.notify_one();
     }
+}
+
+pub enum MonokuloSource {
+    /// Connected at /admin/monokulo.
+    Connected(crate::config::Monokulo),
+    /// Keys pasted into LuCI.
+    Keys,
+    None,
 }
 
 pub fn router(app: Arc<App>) -> Router {

@@ -653,7 +653,29 @@ impl Db {
         .await
     }
 
+    pub async fn delete_setting(&self, key: &'static str) -> Result<()> {
+        self.call(move |c| {
+            c.execute("DELETE FROM settings WHERE key = ?1", [key])
+                .map_err(e)?;
+            Ok(())
+        })
+        .await
+    }
+
     // -------------------------------------------------------------- monokulo
+
+    /// The store connected at /admin/monokulo, if any.
+    pub async fn monokulo_connection(&self) -> Result<Option<crate::config::Monokulo>> {
+        Ok(self
+            .setting("monokulo_connection")
+            .await?
+            .and_then(|j| serde_json::from_str(&j).ok()))
+    }
+
+    pub async fn set_monokulo_connection(&self, c: &crate::config::Monokulo) -> Result<()> {
+        let json = serde_json::to_string(c).map_err(|err| err.to_string())?;
+        self.set_setting("monokulo_connection", json).await
+    }
 
     /// The newest Monokulo order made for this order.
     pub async fn monokulo_order(&self, order_id: i64) -> Result<Option<MonokuloOrder>> {

@@ -32,7 +32,7 @@ src/orders.rs        Order statuses and which changes are allowed
 src/emails.rs        The emails, as HTML and plain text
 src/mail.rs          Sending: SMTP, or a Tuta account through Tern's tern-tuta crate
 src/outbox.rs        Sends queued emails, retrying when the mail server is down
-src/monokulo.rs      Monokulo: making payments, checking webhook signatures
+src/monokulo.rs      Monokulo: connecting the store, making payments, checking webhook signatures
 src/invoice.rs       The Invoice button's email draft (.eml) from the template
 src/ratelimit.rs     Spam limits and the client's real IP behind the proxy
 src/assets.rs        css/, js/, assets/ and data/products.json, compiled into the binary
@@ -322,9 +322,14 @@ Then in LuCI, **Services › Handicrafts**:
    from**: the account's own address, or one of its aliases such as `hello@rachelshandicrafts.com`.
    The sender's name is the one set in Tuta. Accounts with two-factor sign-in can't be used, so use
    a separate sending account without it. Save & Apply, then **Send test email**.
-3. **Payments**: PayID and bank details; the Monokulo address, public key and secret key. In Monokulo,
-   add a webhook in the store's settings pointing at
-   `https://www.rachelshandicrafts.com/webhooks/monokulo`, and paste the signing secret it shows.
+3. **Payments**: PayID and bank details, and the Monokulo address (`https://www.monokulo.com`). Save &
+   Apply, then open the shop's **Monero** page (`/admin/monokulo`) and press **Connect to
+   Monokulo**: you sign in to Monokulo and confirm, and the shop fetches the store's keys and adds its
+   webhook by itself (Monokulo's plugin connect flow, under the name `handicrafts`). **Send a test
+   webhook** there checks payments notices get through. Monokulo finds the store by the shop's
+   address and makes one if there isn't one, and needs its own public address set in its admin
+   settings. Keys can still be pasted into LuCI by hand instead; a connected store takes over from
+   them.
 4. Point the reverse proxy at `127.0.0.1:8082`.
 
 Secrets (the admin password's hash, mail passwords, Monokulo keys) are kept in root-only files in

@@ -91,17 +91,23 @@ async fn serve() -> Result<(), String> {
     let db = db::Db::open(&cfg.db_path())?;
     let mail = Arc::new(transport);
     let listen = cfg.listen;
+    let app = Arc::new(web::App::new(cfg, db.clone(), mail.clone()));
+    app.refresh_monokulo().await;
+    let cfg = &app.cfg;
+    let monero = match app.monokulo_source().await {
+        web::MonokuloSource::Connected(_) => "on (store connected at /admin/monokulo)",
+        web::MonokuloSource::Keys => "on (keys set in LuCI)",
+        web::MonokuloSource::None if cfg.monokulo_url.is_some() => {
+            "off until the store is connected at /admin/monokulo"
+        }
+        web::MonokuloSource::None => "off (no Monokulo address set)",
+    };
     eprintln!(
-        "handicrafts {}: serving {} on {listen}; data in {}; email {}; Monero {}; admin {}",
+        "handicrafts {}: serving {} on {listen}; data in {}; email {}; Monero {monero}; admin {}",
         env!("CARGO_PKG_VERSION"),
         cfg.public_url,
         cfg.data_dir.display(),
         mail.describe(),
-        if cfg.monokulo.is_some() {
-            "on"
-        } else {
-            "off (Monokulo not set up)"
-        },
         if cfg.admin_password_hash.is_some() {
             "on"
         } else {
@@ -111,7 +117,6 @@ async fn serve() -> Result<(), String> {
     if cfg.admin_email.is_none() {
         eprintln!("handicrafts: no admin email set, so order notifications aren't sent");
     }
-    let app = Arc::new(web::App::new(cfg, db.clone(), mail.clone()));
     tokio::spawn(outbox::run(db, mail.clone(), app.outbox.clone()));
 
     let listener = tokio::net::TcpListener::bind(listen)

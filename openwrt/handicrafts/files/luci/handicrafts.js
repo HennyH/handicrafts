@@ -266,10 +266,17 @@ return view.extend({
 		o.rawhtml = true;
 		o.cfgvalue = function() {
 			var url = uci.get('handicrafts', 'main', 'public_url') || 'https://your-shop';
-			return _('In Monokulo, add a webhook in the store’s settings pointing at <code>%s/webhooks/monokulo</code>. Monokulo shows its signing secret once: paste it below. Monero is offered once the secret key and signing secret are set.').format(url);
+			return _('Set the Monokulo address, Save & Apply, then connect the store on the shop’s own <a href="%s/admin/monokulo" target="_blank" rel="noreferrer">Monero page</a>: you sign in to Monokulo and confirm, and the shop fetches the keys and adds its webhook by itself.').format(url);
 		};
 		o = payOpt(form.Value, 'monokulo_url', _('Monokulo address'));
 		o.placeholder = 'https://www.monokulo.com';
+
+		o = s.taboption('payments', form.DummyValue, '_mk_keys_head', _('Keys by hand'));
+		o.rawhtml = true;
+		o.cfgvalue = function() {
+			var url = uci.get('handicrafts', 'main', 'public_url') || 'https://your-shop';
+			return _('Only if you’d rather not connect: make a secret key in Monokulo, add a webhook pointing at <code>%s/webhooks/monokulo</code>, and paste all three below. A store connected on the Monero page takes over from these.').format(url);
+		};
 		o = payOpt(form.Value, 'monokulo_public_key', _('Public key'), _('<code>pk_…</code>: lets the embedded checkout follow the payment.'));
 		o.validate = function(sid, v) { return (!v || /^pk_/.test(v)) ? true : _('Starts with pk_'); };
 		secretOption(s, 'payments', 'HANDICRAFTS_MONOKULO_SECRET_KEY', _('Secret key'),

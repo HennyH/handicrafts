@@ -103,6 +103,9 @@ check "LuCI's status names no secret's value" \
 check "the database is in the data folder, owned by the shop" \
 	'[ -s /srv/handicrafts/handicrafts.db ] && [ "$(ls -ldn /srv/handicrafts | awk "{print \$3}")" = "$(id -u handicrafts)" ]'
 
+check "with only the Monokulo address set, it waits for the store to be connected at /admin/monokulo" \
+	'logread -e handicrafts | grep -q "until the store is connected at /admin/monokulo"'
+
 x 'uci set handicrafts.main.public_url=ftp://nope; uci commit handicrafts'
 check "the check refuses a bad setting, saying why" \
 	'! /etc/init.d/handicrafts check && grep -q PUBLIC_URL /tmp/handicrafts.check'

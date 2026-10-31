@@ -172,16 +172,7 @@ pub fn eml(draft: &Draft, to_name: &str, to_addr: &str) -> String {
     )
 }
 
-fn pct(s: &str) -> String {
-    s.bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
-}
+use crate::util::pct;
 
 pub fn mailto(draft: &Draft, to_addr: &str) -> String {
     format!(
