@@ -15,3 +15,6 @@ node_modules/
 # OpenWrt build output and the binary dropped in for the SDK.
 /openwrt/handicrafts/files/handicrafts
 /data-dev/
+
+# The browser test's dependencies (scripts/test-browser.sh installs them).
+/tests/browser/node_modules/

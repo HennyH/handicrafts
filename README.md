@@ -46,13 +46,15 @@ js/checkout.js       Fills the checkout's summary and sends the cart with the or
 js/pay.js            Mounts Monokulo's checkout on the pay page
 js/admin.js          Small /admin helpers
 js/fixi.js           fixi.js 0.9.4, vendored
+js/fixi-forms.js     Makes fixi send forms URL-encoded, like a plain form post
 js/main.js           Shared bits: mobile nav, footer year, nav highlighting, copy buttons
 
 data/products.json   ← THE FILE YOU EDIT to add/change/remove products
 data/recipes.json    ← THE FILE YOU EDIT to add/change/remove recipes
 
 openwrt/             The OpenWrt package: Makefile, init script, UCI defaults, LuCI page, rpcd backend
-scripts/             build-openwrt.sh (the .apk) and test-openwrt.sh (installs it in OpenWrt)
+scripts/             build-openwrt.sh (the .apk), test-openwrt.sh (installs it in OpenWrt) and
+                     test-browser.sh (the whole flow in a real browser, tests/browser/flow.mjs)
 
 assets/doodles/      Hand-drawn SVG illustrations (logo, sewing machine, icons)
 assets/products/     Product photos
@@ -219,7 +221,10 @@ HANDICRAFTS_MAIL=log HANDICRAFTS_ADMIN_PASSWORD_HASH='<the hash>' cargo run
 ```
 
 `cargo run -- --help` lists every setting. `cargo test` runs the tests, including whole orders end to
-end against a fake Monokulo.
+end against a fake Monokulo. `scripts/test-browser.sh` runs the whole flow in a real browser
+(Chromium, through playwright-core): checkout, `/admin`, the invoice, connecting Monokulo and both ways
+of paying, with screenshots in `target/browser-test/`. It needs Node and Chromium (`CHROME=` if it
+isn't `/usr/bin/chromium`).
 
 ## How orders and payments work
 

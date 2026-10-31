@@ -1,0 +1,9 @@
+{
+  "name": "handicrafts-browser-test",
+  "private": true,
+  "type": "module",
+  "description": "The shop's whole flow in a real browser; run scripts/test-browser.sh",
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}
