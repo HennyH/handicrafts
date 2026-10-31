@@ -97,6 +97,10 @@ check "LuCI's backend starts it" '[ "$(ubus call handicrafts restart | jsonfilte
 eventually "it runs, as its own user" \
 	'. /tmp/t.sh; running && [ "$(awk "/^Uid:/ { print \$2 }" /proc/$(pidof handicrafts)/status)" = "$(id -u handicrafts)" ]'
 eventually "it serves the shop" 'uclient-fetch -q -O - http://127.0.0.1:8082/ | grep -q "Rachel"'
+check "LuCI's backend sends a test email (an address with an s in it)" \
+	'r=$(ubus call handicrafts test_mail "{\"to\":\"hello@rachelshandicrafts.com\"}"); [ "$(echo "$r" | jsonfilter -e @.ok)" = true ]'
+check "LuCI's backend refuses a test email to something that isn't an address" \
+	'[ "$(ubus call handicrafts test_mail "{\"to\":\"a b@example.com\"}" | jsonfilter -e @.ok)" = false ]'
 check "/admin asks for the password" '! uclient-fetch -q -O /dev/null http://127.0.0.1:8082/admin 2>/dev/null'
 check "LuCI's status names no secret's value" \
 	's=$(ubus call handicrafts status); [ "$(echo "$s" | jsonfilter -e @.running)" = true ] && ! echo "$s" | grep -q argon2'
