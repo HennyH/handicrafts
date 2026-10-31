@@ -1,0 +1,194 @@
+# Test, build the OpenWrt package, and publish the signed apk repository.
+# The same setup as Monokulo's openwrt.yml and pages.yml, cut down to one
+# package.
+#
+# Every push and pull request: the Rust tests, then the package for each
+# OpenWrt release and CPU architecture in the matrix, then the x86_64 package
+# installed and run inside OpenWrt's own image (scripts/test-openwrt.sh).
+#
+# Pushes to master also publish the signed apk repository on GitHub Pages.
+# Pages used to serve the shop itself: the first such push replaces the old
+# static shop on Pages with the repository, so www.rachelshandicrafts.com
+# should point at the router (and the Pages custom domain be removed under
+# Settings > Pages) by then.
+#
+# Needs the repository secret APK_SIGNING_KEY: the private key matching
+# openwrt/keys/monokulo.pem (the key that signs Monokulo and Kringle). Pull
+# requests from forks build with a throwaway key, and nothing they build is
+# published.
+
+name: release
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: rust tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      # Only our own code must be warning-free: -D warnings would also fail
+      # on the vendored Tuta SDK, which is kept as upstream wrote it.
+      - name: cargo clippy
+        run: |
+          cargo clippy --all-targets --locked --message-format=short 2>&1 | tee clippy.log
+          if grep -E '^src/.*: (warning|error)' clippy.log; then exit 1; fi
+      - run: cargo test --locked
+
+  build:
+    name: openwrt package (${{ matrix.release }}, ${{ matrix.arch }})
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The GL.iNet Flint 2 (mediatek/filogic), as Monokulo builds it.
+          - release: '25.12'
+            arch: aarch64_cortex-a53
+            sdk_image: openwrt/sdk:mediatek-filogic-25.12.5
+            rust_target: aarch64-unknown-linux-musl
+            toolchain_prefix: aarch64-openwrt-linux-musl
+          # x86_64, for the install test below.
+          - release: '25.12'
+            arch: x86_64
+            sdk_image: openwrt/sdk:x86-64-25.12.5
+            rust_target: x86_64-unknown-linux-musl
+            toolchain_prefix: x86_64-openwrt-linux-musl
+    env:
+      SDK_IMAGE: ${{ matrix.sdk_image }}
+      OPENWRT_ARCH: ${{ matrix.arch }}
+      RUST_TARGET: ${{ matrix.rust_target }}
+      TOOLCHAIN_PREFIX: ${{ matrix.toolchain_prefix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The package's release number is the commit count.
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: openwrt-${{ matrix.release }}-${{ matrix.arch }}
+      - name: Build the package and repository
+        env:
+          APK_SIGNING_KEY: ${{ secrets.APK_SIGNING_KEY }}
+          SDK_VOLUME: ''
+        run: |
+          if [ -z "$APK_SIGNING_KEY" ] && [ "$GITHUB_EVENT_NAME" = push ]; then
+            echo "::error::Set the APK_SIGNING_KEY secret; routers won't trust a package signed with a throwaway key."
+            exit 1
+          fi
+          scripts/build-openwrt.sh
+      - name: Summary
+        run: |
+          {
+            echo "## OpenWrt package (${{ matrix.release }}, ${{ matrix.arch }})"
+            echo
+            echo "| File | Size |"
+            echo "| --- | ---: |"
+            for f in dist/*.apk dist/packages.adb; do
+              echo "| \`$(basename "$f")\` | $(du -h "$f" | cut -f1) |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: handicrafts-openwrt-${{ matrix.release }}-${{ matrix.arch }}
+          path: |
+            dist/*.apk
+            dist/packages.adb
+            dist/monokulo.pem
+            dist/SHA256SUMS
+            dist/throwaway.pem
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openwrt-repo-${{ matrix.release }}-${{ matrix.arch }}
+          path: dist/repo/
+          if-no-files-found: error
+          retention-days: 90
+
+  install-test:
+    name: install and run on OpenWrt (25.12, x86_64)
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: handicrafts-openwrt-25.12-x86_64
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: openwrt-repo-25.12-x86_64
+          path: dist/repo
+      - run: scripts/test-openwrt.sh dist
+
+  pages:
+    name: publish the apk repository
+    needs: install-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: openwrt-repo-*
+          path: artifacts
+      # site/openwrt/<release>/<arch>/packages.adb, plus the key and a page
+      # that says how to add the repository to a router.
+      - name: Lay out the site
+        run: |
+          mkdir -p site/openwrt
+          for d in artifacts/openwrt-repo-*; do
+            name=${d#artifacts/openwrt-repo-}
+            release=${name%%-*}
+            arch=${name#*-}
+            mkdir -p "site/openwrt/$release/$arch"
+            cp "$d"/* "site/openwrt/$release/$arch/"
+          done
+          cp openwrt/keys/monokulo.pem site/openwrt/monokulo.pem
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          cat > site/index.html <<EOF
+          <!doctype html><meta charset="utf-8"><title>Handicrafts OpenWrt packages</title>
+          <h1>Handicrafts OpenWrt packages</h1>
+          <p>On the router (OpenWrt 25.12, the same key as Monokulo's packages):</p>
+          <pre>wget -O /etc/apk/keys/monokulo.pem $base/openwrt/monokulo.pem
+          echo $base/openwrt/25.12/aarch64_cortex-a53/packages.adb &gt;&gt; /etc/apk/repositories.d/customfeeds.list
+          apk update &amp;&amp; apk add handicrafts</pre>
+          EOF
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

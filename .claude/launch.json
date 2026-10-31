@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "static-site",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8123", "--directory", "dist"],
-      "port": 8123
+      "name": "shop",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": ["run"],
+      "env": { "HANDICRAFTS_MAIL": "log", "HANDICRAFTS_LISTEN": "127.0.0.1:8082" },
+      "port": 8082
     }
   ]
 }

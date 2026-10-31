@@ -1,10 +1,46 @@
 [package]
-name = "build-site"
+name = "handicrafts"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
+# Tern and Tuta's SDK are GPL-3.0, and they are linked into the binary.
+license = "GPL-3.0-only"
+description = "Rachel's Handicrafts: the shop, its orders and payments, in one small binary for an OpenWrt router."
 
 [dependencies]
-minijinja = { version = "2", features = ["loader"] }
-# Only used to turn data/recipes.json into a minijinja Value at build time —
-# no derive macros, so this stays a small, fast-compiling dependency.
+argon2 = { version = "0.5", features = ["std"] }
+axum = { version = "0.8", default-features = false, features = ["tokio", "http1", "form", "query", "json", "original-uri"] }
+base64 = "0.22"
+hmac = "0.12"
+lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots", "hostname"] }
+maud = "0.27"
+minijinja = "2"
+rand = "0.8"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
+rusqlite = { version = "0.37", features = ["bundled"] }
+rust-embed = { version = "8", features = ["mime-guess", "include-exclude"] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
+subtle = "2"
+time = { version = "0.3", features = ["formatting", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "macros", "signal", "time", "sync"] }
+# Tuta has no SMTP: Tern (an email client for Tuta) signs in and sends with
+# Tuta's own SDK. Pinned, as its API follows Tern's composer.
+tern-core = { git = "https://github.com/OceanEilonwy/tern", rev = "a97d5fb" }
+tern-tuta = { git = "https://github.com/OceanEilonwy/tern", rev = "a97d5fb" }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+
+[workspace]
+members = ["."]
+
+# Small over fast: a handful of orders a week never notices. A panic aborts;
+# on the router procd restarts the service.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

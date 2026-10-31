@@ -1,0 +1,184 @@
+#!/bin/sh /etc/rc.common
+# shellcheck shell=ash
+# shellcheck disable=SC2034,SC3043
+# The Rachel's Handicrafts shop. Its settings are in /etc/config/handicrafts,
+# or LuCI: Services > Handicrafts; saving restarts it. Its secrets (the admin
+# password's hash, mail and Monokulo keys) are files in
+# /etc/handicrafts/secrets/, root's alone, one per variable, passed to it in
+# its environment: it takes secrets from nowhere else.
+
+START=99
+STOP=10
+USE_PROCD=1
+EXTRA_COMMANDS="check test_mail"
+EXTRA_HELP="	check	Check the settings and secrets as the next start would take them
+	test_mail ADDRESS	Send a test email now"
+
+NAME=handicrafts
+RUN_AS=handicrafts
+SECRETS_DIR=/etc/handicrafts/secrets
+SECRETS="HANDICRAFTS_ADMIN_PASSWORD_HASH HANDICRAFTS_SMTP_PASSWORD HANDICRAFTS_TUTA_PASSWORD HANDICRAFTS_MONOKULO_SECRET_KEY HANDICRAFTS_MONOKULO_WEBHOOK_SECRET"
+VERSION_FILE=/usr/share/handicrafts/version
+CHECK_FILE=/tmp/handicrafts.check
+
+log() {
+	logger -t handicrafts "$*"
+}
+
+# ENV: the settings as NAME=value lines, built by settings().
+ENV=
+
+add() {
+	[ -n "$2" ] || return 0
+	ENV="$ENV
+$1=$2"
+}
+
+opt() {
+	local v
+	config_get v "$2" "$3"
+	add "$1" "$v"
+}
+
+settings() {
+	local port listen proxies secret value data_dir
+
+	ENV=
+	config_load handicrafts
+	config_get port main port 8082
+	config_get listen main listen 127.0.0.1
+	add HANDICRAFTS_LISTEN "$listen:$port"
+	opt HANDICRAFTS_PUBLIC_URL main public_url
+	opt HANDICRAFTS_DATA_DIR main data_dir
+	# Tern's Tuta SDK caches Tuta's type models here, so start-up skips
+	# downloading them.
+	config_get data_dir main data_dir /srv/handicrafts
+	add XDG_CACHE_HOME "$data_dir/cache"
+	add HOME "$data_dir"
+	config_get proxies main trusted_proxies '127.0.0.1 ::1'
+	add HANDICRAFTS_TRUSTED_PROXIES "$(echo $proxies | tr ' ' ',')"
+	opt HANDICRAFTS_ADMIN_USER main admin_user
+	opt HANDICRAFTS_ADMIN_EMAIL main admin_email
+
+	opt HANDICRAFTS_MAIL mail transport
+	opt HANDICRAFTS_MAIL_FROM_NAME mail from_name
+	opt HANDICRAFTS_TUTA_USER mail tuta_user
+	opt HANDICRAFTS_SMTP_HOST mail smtp_host
+	opt HANDICRAFTS_SMTP_PORT mail smtp_port
+	opt HANDICRAFTS_SMTP_SECURITY mail smtp_security
+	opt HANDICRAFTS_SMTP_USER mail smtp_user
+	opt HANDICRAFTS_MAIL_FROM mail from
+
+	opt HANDICRAFTS_PAYID payments payid
+	opt HANDICRAFTS_BANK_ACCOUNT_NAME payments bank_account_name
+	opt HANDICRAFTS_BSB payments bsb
+	opt HANDICRAFTS_ACCOUNT_NUMBER payments account_number
+	# Monero is on once a Monokulo secret is set; the shop then needs all
+	# four Monokulo settings and says which is missing.
+	if [ -s "$SECRETS_DIR/HANDICRAFTS_MONOKULO_SECRET_KEY" ] || [ -s "$SECRETS_DIR/HANDICRAFTS_MONOKULO_WEBHOOK_SECRET" ]; then
+		opt HANDICRAFTS_MONOKULO_URL payments monokulo_url
+		opt HANDICRAFTS_MONOKULO_PUBLIC_KEY payments monokulo_public_key
+	fi
+
+	opt HANDICRAFTS_LIMIT_IP_10MIN limits ip_10min
+	opt HANDICRAFTS_LIMIT_IP_DAY limits ip_day
+	opt HANDICRAFTS_LIMIT_EMAIL_DAY limits email_day
+	opt HANDICRAFTS_LIMIT_SHOP_DAY limits shop_day
+
+	for secret in $SECRETS; do
+		[ -s "$SECRETS_DIR/$secret" ] || continue
+		value=$(cat "$SECRETS_DIR/$secret")
+		add "$secret" "$value"
+	done
+}
+
+# Run the binary with the settings in its environment (never on its
+# command line, where other users could see the secrets).
+with_settings() {
+	settings
+	(
+		IFS='
+'
+		for kv in $ENV; do
+			[ -n "$kv" ] && export "$kv"
+		done
+		exec "$@"
+	)
+}
+
+ensure_dirs() {
+	local dir="$1" owner
+	mkdir -p "$SECRETS_DIR" && chmod 700 /etc/handicrafts "$SECRETS_DIR" || return 1
+	case "$dir" in
+	/tmp/* | /var/*) log "the data folder $dir is in memory and would be lost on reboot; choose one on storage"; return 1 ;;
+	/*) ;;
+	*) log "the data folder must be an absolute path, not '$dir'"; return 1 ;;
+	esac
+	[ -e "$dir" ] || mkdir -p "$dir" || return 1
+	owner=$(ls -ld "$dir" | awk '{ print $3 }')
+	if [ "$owner" != "$RUN_AS" ] && [ -n "$(ls -A "$dir")" ]; then
+		log "not using $dir: it holds other files and isn't the shop's own folder; choose a new or empty folder in Services > Handicrafts"
+		return 1
+	fi
+	chown -R "$RUN_AS:$RUN_AS" "$dir"
+	chmod 700 "$dir"
+}
+
+check() {
+	local out
+	if out=$(with_settings /usr/bin/handicrafts check 2>&1); then
+		rm -f "$CHECK_FILE"
+		echo "$out"
+		return 0
+	fi
+	echo "$out" | sed 's/^handicrafts: //' >"$CHECK_FILE"
+	echo "$out" >&2
+	return 1
+}
+
+test_mail() {
+	[ -n "$1" ] || {
+		echo "usage: /etc/init.d/handicrafts test_mail ADDRESS" >&2
+		return 1
+	}
+	with_settings /usr/bin/handicrafts send-test-mail "$1"
+}
+
+start_service() {
+	local enabled data_dir kv
+
+	config_load handicrafts
+	config_get_bool enabled main enabled 1
+	[ "$enabled" = 1 ] || return 0
+	config_get data_dir main data_dir /srv/handicrafts
+
+	ensure_dirs "$data_dir" || return 1
+	# A bad setting stops the start, with the reason in the log and LuCI.
+	if ! check >/dev/null 2>&1; then
+		log "not starting: $(cat "$CHECK_FILE" 2>/dev/null)"
+		return 1
+	fi
+
+	settings
+	procd_open_instance handicrafts
+	procd_set_param command /usr/bin/handicrafts
+	local IFS='
+'
+	for kv in $ENV; do
+		[ -n "$kv" ] && procd_append_param env "$kv"
+	done
+	unset IFS
+	procd_set_param user "$RUN_AS"
+	# The build, so LuCI shows the version that is running.
+	procd_set_param data \
+		version="$(sed -n 's/^version=//p' "$VERSION_FILE" 2>/dev/null)" \
+		commit="$(sed -n 's/^commit=//p' "$VERSION_FILE" 2>/dev/null)"
+	procd_set_param respawn 3600 5 5
+	procd_set_param stdout 1
+	procd_set_param stderr 1
+	procd_close_instance
+}
+
+service_triggers() {
+	procd_add_reload_trigger handicrafts
+}

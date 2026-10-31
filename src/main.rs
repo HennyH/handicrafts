@@ -1,110 +1,176 @@
-//! Builds the site into `dist/`.
+//! Rachel's Handicrafts: the shop, its orders and payments, in one binary.
 //!
-//! Every page shares one `templates/base.html` (head, header, footer), so the
-//! nav and footer exist in exactly one place instead of being copy-pasted into
-//! four files and slowly drifting apart. `cargo run` produces a complete,
-//! servable site — HTML plus the static directories — and CI uploads `dist/`
-//! straight to GitHub Pages, so the generated HTML is never committed and can
-//! never fall out of sync with the templates.
+//! `handicrafts` serves the site. Other commands, for the LuCI page and for
+//! setting up:
+//!   handicrafts hash-password      read a password on stdin, print its argon2 hash
+//!   handicrafts check-mail         sign in to the mail server or Tuta, send nothing
+//!   handicrafts send-test-mail TO  send a test email now
+//!   handicrafts check              check the settings and exit
 
-use minijinja::value::Value;
-use minijinja::{context, Environment};
-use std::path::Path;
-use std::{fs, io};
+// Handlers return `Result<_, Response>` to bail out early with a page.
+#![allow(clippy::result_large_err, clippy::too_many_arguments)]
 
-/// Cache-buster appended to css/style.css. Bump when the stylesheet changes,
-/// otherwise returning visitors keep being served the copy they cached.
-const CSS_V: u32 = 34;
+mod assets;
+mod catalog;
+mod config;
+mod db;
+mod emails;
+mod invoice;
+mod mail;
+mod monokulo;
+mod orders;
+mod outbox;
+mod ratelimit;
+mod util;
+mod views;
+mod web;
 
-/// Pages that render straight from a same-named template with no extra data
-/// of their own. `recipes.html` also gets the full recipe list in its
-/// context (see `main`) — every other page here simply ignores that variable.
-const PAGES: [&str; 5] = ["index", "shop", "cart", "checkout", "recipes"];
+use std::{net::SocketAddr, process::ExitCode, sync::Arc};
 
-/// Copied into `dist/` verbatim. CNAME has to travel with the artifact or the
-/// custom domain is dropped on deploy; favicon.ico sits at the site root
-/// because browsers request /favicon.ico on their own, with or without a
-/// <link> tag pointing at it.
-const STATIC: [&str; 6] = ["css", "js", "assets", "data", "CNAME", "favicon.ico"];
+use argon2::{Argon2, PasswordHasher, password_hash::SaltString};
 
-/// Recursive copy that skips files whose destination is already up to date —
-/// assets/ is tens of megabytes and would otherwise be rewritten every build.
-fn copy_into(src: &Path, dst: &Path) -> io::Result<()> {
-    if src.is_dir() {
-        fs::create_dir_all(dst)?;
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            copy_into(&entry.path(), &dst.join(entry.file_name()))?;
+fn usage() -> String {
+    format!(
+        "handicrafts {}: Rachel's Handicrafts shop\n\n\
+         Usage:\n  handicrafts                    serve the shop\n  handicrafts hash-password      read a password on stdin, print its argon2 hash\n  \
+         handicrafts check-mail         sign in to the mail server or Tuta, send nothing\n  handicrafts send-test-mail TO  send a test email now\n  \
+         handicrafts check              check the settings and exit\n\n{}\n{}",
+        env!("CARGO_PKG_VERSION"),
+        config::ENV_HELP,
+        mail::ENV_HELP
+    )
+}
+
+fn main() -> ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    let result = match args.first().map(String::as_str) {
+        None | Some("serve") => rt.block_on(serve()),
+        Some("hash-password") => hash_password(),
+        Some("check-mail") => rt.block_on(check_mail()),
+        Some("send-test-mail") => match args.get(1) {
+            Some(to) => rt.block_on(send_test_mail(to)),
+            None => Err("send-test-mail needs an address".into()),
+        },
+        Some("check") => settings().map(|(c, m)| {
+            println!(
+                "Settings are fine. Listening on {}; email {}.",
+                c.listen,
+                m.describe()
+            )
+        }),
+        Some("-h" | "--help" | "help") => {
+            println!("{}", usage());
+            Ok(())
         }
-        return Ok(());
-    }
-    if let (Ok(from), Ok(to)) = (fs::metadata(src), fs::metadata(dst)) {
-        if let (Ok(from), Ok(to)) = (from.modified(), to.modified()) {
-            if from <= to {
-                return Ok(());
-            }
+        Some("--version") => {
+            println!("{}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
+        Some(other) => Err(format!("unknown command {other:?}\n\n{}", usage())),
+    };
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("handicrafts: {e}");
+            ExitCode::FAILURE
         }
     }
-    fs::copy(src, dst)?;
+}
+
+fn settings() -> Result<(config::Config, mail::Transport), String> {
+    Ok((config::Config::from_env()?, mail::Transport::from_env()?))
+}
+
+async fn serve() -> Result<(), String> {
+    let (cfg, transport) = settings()?;
+    let db = db::Db::open(&cfg.db_path())?;
+    let mail = Arc::new(transport);
+    let listen = cfg.listen;
+    eprintln!(
+        "handicrafts {}: serving {} on {listen}; data in {}; email {}; Monero {}; admin {}",
+        env!("CARGO_PKG_VERSION"),
+        cfg.public_url,
+        cfg.data_dir.display(),
+        mail.describe(),
+        if cfg.monokulo.is_some() {
+            "on"
+        } else {
+            "off (Monokulo not set up)"
+        },
+        if cfg.admin_password_hash.is_some() {
+            "on"
+        } else {
+            "closed (no password set)"
+        },
+    );
+    if cfg.admin_email.is_none() {
+        eprintln!("handicrafts: no admin email set, so order notifications aren't sent");
+    }
+    let app = Arc::new(web::App::new(cfg, db.clone(), mail.clone()));
+    tokio::spawn(outbox::run(db, mail.clone(), app.outbox.clone()));
+
+    let listener = tokio::net::TcpListener::bind(listen)
+        .await
+        .map_err(|e| format!("can't listen on {listen}: {e}"))?;
+    let service = web::router(app).into_make_service_with_connect_info::<SocketAddr>();
+    axum::serve(listener, service)
+        .with_graceful_shutdown(async {
+            let ctrl_c = tokio::signal::ctrl_c();
+            let mut term =
+                tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                    .expect("signal");
+            tokio::select! { _ = ctrl_c => {}, _ = term.recv() => {} }
+        })
+        .await
+        .map_err(|e| format!("server: {e}"))?;
+    mail.close().await;
     Ok(())
 }
 
-fn main() -> io::Result<()> {
-    let out = Path::new("dist");
-    fs::create_dir_all(out)?;
-
-    let mut env = Environment::new();
-    // strips the newline directly after a block tag, so a page that leaves an
-    // optional block (like `description`) undefined doesn't leave a blank line
-    env.set_trim_blocks(true);
-    // without this the final newline of base.html is dropped, leaving files
-    // without a trailing newline
-    env.set_keep_trailing_newline(true);
-    env.set_loader(minijinja::path_loader("templates"));
-
-    // Recipe content lives in one JSON file, same as the product catalogue —
-    // edit data/recipes.json to add, remove or change a recipe, no template
-    // or Rust changes needed. Parsed with serde_json and handed to minijinja
-    // via Value::from_serialize, so the templates see plain lists/dicts.
-    let recipes_json = fs::read_to_string("data/recipes.json")?;
-    let recipes: serde_json::Value =
-        serde_json::from_str(&recipes_json).expect("data/recipes.json: invalid JSON");
-    let recipes_value = Value::from_serialize(&recipes);
-    let recipe_list = recipes.as_array().expect("data/recipes.json: expected a top-level array");
-
-    for page in PAGES {
-        let name = format!("{page}.html");
-        let html = env
-            .get_template(&name)
-            .unwrap_or_else(|e| panic!("template {name}: {e}"))
-            .render(context! { css_v => CSS_V, recipes => recipes_value })
-            .unwrap_or_else(|e| panic!("rendering {name}: {e}"));
-        fs::write(out.join(&name), html)?;
+fn hash_password() -> Result<(), String> {
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .map_err(|e| e.to_string())?;
+    let pass = line.trim_end_matches(['\r', '\n']);
+    if pass.chars().count() < 8 {
+        return Err("the password must be at least 8 characters".into());
     }
+    let salt = SaltString::generate(&mut argon2::password_hash::rand_core::OsRng);
+    let hash = Argon2::default()
+        .hash_password(pass.as_bytes(), &salt)
+        .map_err(|e| e.to_string())?;
+    println!("{hash}");
+    Ok(())
+}
 
-    // One page per recipe, named after its `id` — recipe-scones.html rather
-    // than a recipes/ subdirectory, so it's a sibling of shop.html and cart.html
-    // and needs none of the relative-path handling a nested page would.
-    let recipe_tpl = env
-        .get_template("recipe.html")
-        .unwrap_or_else(|e| panic!("template recipe.html: {e}"));
-    for recipe in recipe_list {
-        let id = recipe["id"]
-            .as_str()
-            .unwrap_or_else(|| panic!("a recipe in data/recipes.json is missing \"id\""));
-        let html = recipe_tpl
-            .render(context! { css_v => CSS_V, recipe => Value::from_serialize(recipe) })
-            .unwrap_or_else(|e| panic!("rendering recipe \"{id}\": {e}"));
-        fs::write(out.join(format!("recipe-{id}.html")), html)?;
-    }
+async fn check_mail() -> Result<(), String> {
+    let t = mail::Transport::from_env()?;
+    let r = t.check().await;
+    t.close().await;
+    println!("{}", r?);
+    Ok(())
+}
 
-    for item in STATIC {
-        let path = Path::new(item);
-        if path.exists() {
-            copy_into(path, &out.join(item))?;
-        }
-    }
-
-    println!("built {} pages + {} recipes into dist/", PAGES.len(), recipes.as_array().map_or(0, |a| a.len()));
+async fn send_test_mail(to: &str) -> Result<(), String> {
+    let to = mail::clean_address(to).ok_or("that isn't an email address")?;
+    let t = mail::Transport::from_env()?;
+    let m = emails::test_mail(&to);
+    let letter = mail::Letter {
+        to_name: String::new(),
+        to: m.to_addr,
+        subject: m.subject,
+        text: m.text,
+        html: m.html,
+    };
+    let r = t.send(&letter).await;
+    t.close().await;
+    r?;
+    println!("Sent a test email to {to} ({}).", t.describe());
     Ok(())
 }
