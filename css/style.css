@@ -586,9 +586,25 @@ textarea { resize: vertical; min-height: 80px; }
 .refund input { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.85rem; }
 .refund small { display: block; color: var(--ink-soft); font-size: 0.82rem; margin-top: 6px; }
 #refund-status { font-weight: 700; color: var(--sage); }
-.mk-mount { min-height: 120px; border-radius: 14px; }
-.mk-mount iframe { max-width: 100%; border: 0; display: block; margin: 0 auto; }
-.mk-loading { margin: 0; padding: 24px 16px; text-align: center; color: var(--ink-soft); border: 1.5px dashed #d9dde0; border-radius: 14px; }
+.mk-mount { border-radius: 14px; }
+.mk-frame { width: 100%; height: 500px; border: 0; display: block; background: transparent; }
+@media (max-width: 520px) { .mk-frame { height: 540px; } }
+
+/* the framed Monero card (/pay/<token>/monero) */
+body.mkc { display: block; min-height: 0; background: transparent; padding: 4px 2px 12px; text-align: center; }
+.mkc__state { display: grid; gap: 2px; padding: 10px 14px; border: 2px solid var(--ink); border-radius: 14px; background: #fbf3e2; box-shadow: var(--shadow-sketch); }
+.mkc__state b { font-weight: 700; }
+.mkc__state span { font-size: 0.88rem; color: var(--ink-soft); }
+.mkc__state--ok { background: #e4efe0; }
+.mkc__state--warn { background: #fbeee8; border-color: var(--clay); }
+.mkc__state--warn b { color: var(--clay); }
+.mkc__qr { width: 188px; margin: 16px auto 4px; padding: 6px; background: var(--white); border: 2px solid var(--ink); border-radius: 12px; transform: rotate(-1deg); box-shadow: var(--shadow-sketch); }
+.mkc__qr svg { display: block; width: 100%; height: auto; }
+.mkc__label { margin: 12px 0 2px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
+.mkc__amount { margin: 0; font-size: 1.1rem; color: var(--ink-soft); }
+.mkc__amount b { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 1.6rem; font-weight: 500; color: var(--ink); user-select: all; }
+.mkc__addr { margin: 0; font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.8rem; line-height: 1.45; overflow-wrap: anywhere; user-select: all; padding: 10px 12px; background: var(--white); border: 1.5px dashed #cfc4ae; border-radius: 10px; }
+.mkc__fine { margin: 12px 0 0; font-size: 0.85rem; }
 .embed-tag { display: block; font-size: 0.78rem; color: var(--ink-soft); margin: 8px 2px 0; }
 .alt { margin-top: 20px; padding-top: 16px; border-top: 1.5px dashed #e3dac6; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-soft); }
 

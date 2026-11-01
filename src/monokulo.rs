@@ -1,8 +1,8 @@
 //! Monokulo: Monero payments. See docs.monokulo.com.
 //!
 //! The server makes each Monokulo order with the store's secret key, so a
-//! customer can't change the price; the pay page only embeds Monokulo's
-//! checkout for it. Only a signed `order.paid` / `order.overpaid` webhook
+//! customer can't change the price; the pay page only shows its
+//! address, amount and progress, read back through the API. Only a signed `order.paid` / `order.overpaid` webhook
 //! moves an order to Paid.
 
 use hmac::{Hmac, Mac};
@@ -20,6 +20,28 @@ pub struct MkOrder {
     pub expires_at: i64,
     #[serde(default)]
     pub status: String,
+}
+
+/// An order as Monokulo's `GET /orders/{id}` shows it: what the payer must
+/// send, where, and how far the payment has got.
+#[derive(Debug, Clone, Deserialize)]
+pub struct MkDetail {
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub xmr_amount_piconero: i64,
+    #[serde(default)]
+    pub amount_received_piconero: i64,
+    #[serde(default)]
+    pub confirmations: i64,
+    #[serde(default)]
+    pub confirmations_required: i64,
+    #[serde(default)]
+    pub expires_at: i64,
+    #[serde(default)]
+    pub is_final: bool,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -181,6 +203,28 @@ impl Client {
         Ok(v.get("delivered")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false))
+    }
+
+    /// Read one order back, for the pay page's payment card.
+    pub async fn get_order(&self, order_id: &str) -> Result<MkDetail, String> {
+        let res = self
+            .http
+            .get(format!(
+                "{}/orders/{}",
+                self.cfg.api,
+                crate::util::pct(order_id)
+            ))
+            .bearer_auth(&self.cfg.secret_key)
+            .header("Monokulo-Client", CLIENT)
+            .send()
+            .await
+            .map_err(|e| format!("couldn't reach Monokulo: {e}"))?;
+        if !res.status().is_success() {
+            return Err(problem(res).await.1);
+        }
+        res.json()
+            .await
+            .map_err(|e| format!("Monokulo's answer didn't make sense: {e}"))
     }
 
     pub fn cfg(&self) -> &config::Monokulo {

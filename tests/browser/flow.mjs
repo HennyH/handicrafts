@@ -46,13 +46,9 @@ const server = http.createServer((req, res) => {
       res.writeHead(201, { "content-type": "application/json" });
       return res.end(JSON.stringify({ order_id: "order_e2e_" + fake.orders.length, xmr_amount_piconero: 121916000000, expires_at: Math.floor(Date.now() / 1000) + 900, status: "pending" }));
     }
-    if (url.pathname === "/static/monokulo-client.js") {
-      res.writeHead(200, { "content-type": "text/javascript" });
-      return res.end(`window.Monokulo = { mount(target, id, opts) {
-        const el = typeof target === "string" ? document.querySelector(target) : target;
-        el.innerHTML = '<div id="fake-mk" style="padding:24px;border:2px solid #f26822;border-radius:12px">Fake Monokulo checkout for ' + id + ' (key ' + opts.publicKey + ', refund form ' + (opts.refund === false ? 'off' : 'on') + ')</div>';
-        window.__mkOpts = opts; return { destroy() {} };
-      } };`);
+    if (req.method === "GET" && url.pathname.startsWith("/api/v1/orders/")) {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ order_id: url.pathname.split("/").pop(), address: "8" + "B".repeat(94), status: "pending", is_final: false, xmr_amount_piconero: 121916000000, amount_received_piconero: 0, confirmations: 0, confirmations_required: 10, expires_at: Math.floor(Date.now() / 1000) + 900 }));
     }
     if (url.pathname === "/api/v1/webhook-tests") {
       res.writeHead(200, { "content-type": "application/json" });
@@ -161,8 +157,9 @@ try {
 
   // --- customer: pay by Monero
   await c.goto(SHOP + payPath);
-  await c.waitForSelector("#fake-mk", { timeout: 10000 });
-  check((await c.locator("#fake-mk").textContent()).includes("pk_e2e") && (await c.locator("#fake-mk").textContent()).includes("refund form off"), "Monokulo's checkout is mounted with the connected key, its refund form off");
+  const card = c.frameLocator("iframe.mk-frame");
+  await card.locator(".mkc__addr").waitFor({ timeout: 10000 });
+  check((await card.locator(".mkc__addr").textContent()).startsWith("8BBB") && (await card.locator(".mkc__amount").textContent()).includes("0.121916") && (await card.locator(".mkc__qr svg").count()) === 1, "the Monero card shows the address, amount and QR code read back from the API");
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
   const refund = "4" + "A".repeat(94);
   await c.fill("#refund", refund);
