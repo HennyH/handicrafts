@@ -43,7 +43,7 @@ js/products.js       Loads data/products.json, renders product cards
 js/cart.js           Cart logic (localStorage)
 js/cart-page.js      Renders cart.html
 js/checkout.js       Fills the checkout's summary and sends the cart with the order
-js/pay.js            Mounts Monokulo's checkout on the pay page
+js/pay.js            Reloads the pay page once the order is paid
 js/admin.js          Small /admin helpers
 js/fixi.js           fixi.js 0.9.4, vendored
 js/fixi-forms.js     Makes fixi send forms URL-encoded, like a plain form post
@@ -242,7 +242,7 @@ isn't `/usr/bin/chromium`).
    `K7P4Q`). Rachel sends it, then sets the order to Invoiced.
 4. **Paying.** The pay link opens `/pay/<secret>`:
    - **Monero** (preferred): the shop makes a Monokulo order for the AUD total with the store's secret
-     key and embeds Monokulo's checkout. When Monokulo sends its signed `order.paid` webhook to
+     key and shows its address, QR code and progress in a card of its own. When Monokulo sends its signed `order.paid` webhook to
      `/webhooks/monokulo`, the order moves to **Paid** on its own, with a timeline comment holding the
      amount, rate and the customer's refund address. A payment whose amount doesn't match never
      marks an order paid. If Monokulo can't price in AUD, the customer is told and offered bank

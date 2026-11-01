@@ -85,6 +85,16 @@ async fn fake_monokulo() -> (String, Arc<Fake>) {
             }),
         )
         .route(
+            "/api/v1/orders/{id}",
+            axum::routing::get(|axum::extract::Path(id): axum::extract::Path<String>| async move {
+                (
+                    StatusCode::OK,
+                    [(header::CONTENT_TYPE, "application/json")],
+                    serde_json::json!({ "order_id": id, "address": format!("8{}", "B".repeat(94)), "status": "pending", "is_final": false, "xmr_amount_piconero": 121_916_000_000i64, "amount_received_piconero": 0, "confirmations": 0, "confirmations_required": 10, "expires_at": util::now() + 900 }).to_string(),
+                )
+            }),
+        )
+        .route(
         "/api/v1/orders",
         post(move |headers: axum::http::HeaderMap, body: String| {
             let f = f.clone();
@@ -404,8 +414,20 @@ async fn monero_flow_from_pay_link_to_paid() {
 
     s.invoice(o.id).await;
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
-    assert!(page.contains("order_abc"), "mounts the Monokulo order");
-    assert!(page.contains("/static/monokulo-client.js"));
+    assert!(
+        page.contains(&format!("/pay/{}/monero", o.pay_token)),
+        "frames the payment card"
+    );
+    assert!(!page.contains("monokulo-client.js"));
+    let (st, card) = s.get(&format!("/pay/{}/monero", o.pay_token)).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(card.contains("http-equiv=\"refresh\""));
+    assert!(
+        card.contains(&format!("8{}", "B".repeat(94))),
+        "shows the address"
+    );
+    assert!(card.contains("0.121916"), "shows the XMR amount");
+    assert!(card.contains("<svg"), "draws a QR code");
     let call = fake.calls.lock().unwrap()[0].clone();
     assert_eq!(call["amount"], "105.00");
     assert_eq!(call["currency"], "AUD");
@@ -641,9 +663,9 @@ async fn connect_flow_fetches_the_keys_and_takes_over() {
         "{admin}"
     );
 
-    // The connected keys are the ones used.
+    // The connected secret key is the one used.
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
-    assert!(page.contains("pk_connected"));
+    assert!(page.contains(&format!("/pay/{}/monero", o.pay_token)));
     assert_eq!(
         fake.auth.lock().unwrap().last().unwrap(),
         "Bearer sk_connected"

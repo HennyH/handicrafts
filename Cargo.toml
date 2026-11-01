@@ -14,6 +14,7 @@ hmac = "0.12"
 lettre = { version = "0.11.23", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots", "hostname"] }
 maud = "0.27"
 minijinja = "2"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 rand = "0.8"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls-webpki-roots"] }
 rusqlite = { version = "0.37", features = ["bundled"] }
