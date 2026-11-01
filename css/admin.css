@@ -105,3 +105,8 @@ textarea { width: 100%; resize: vertical; }
 .template label { font-weight: 600; margin-top: 6px; }
 .template textarea { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.88rem; }
 .preview { white-space: pre-wrap; font-size: 0.88rem; background: var(--bg); padding: 12px; border-radius: 6px; margin: 0; overflow-wrap: anywhere; }
+
+/* a submit button while its form is being sent (js/fixi-forms.js) */
+.btn.is-loading { cursor: progress; opacity: 0.7; }
+.btn.is-loading::after { content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-left: 0.5em; vertical-align: -0.1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin 0.7s linear infinite; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
