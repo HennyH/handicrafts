@@ -602,30 +602,42 @@ pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
             }
             let live = !d.is_final && !matches!(d.status.as_str(), "paid" | "overpaid");
             let uri = format!("monero:{}?tx_amount={}", d.address, amount);
+            let qr = if live && !d.address.is_empty() {
+                qrcode::QrCode::new(uri.as_bytes()).ok().map(|code| {
+                    PreEscaped(
+                        code.render::<qrcode::render::svg::Color>()
+                            .quiet_zone(true)
+                            .min_dimensions(88, 88)
+                            .dark_color(qrcode::render::svg::Color("#29343a"))
+                            .light_color(qrcode::render::svg::Color("#ffffff"))
+                            .build()
+                            .replacen("<?xml version=\"1.0\" standalone=\"yes\"?>", "", 1),
+                    )
+                })
+            } else {
+                None
+            };
             html! {
-                div class={ "mkc__state mkc__state--" (class) } {
-                    b { (title) }
-                    span { (note) }
-                }
                 @if live && !d.address.is_empty() {
-                    @if let Ok(code) = qrcode::QrCode::new(uri.as_bytes()) {
-                        div.mkc__qr {
-                            (PreEscaped(
-                                code.render::<qrcode::render::svg::Color>()
-                                    .quiet_zone(true)
-                                    .min_dimensions(176, 176)
-                                    .dark_color(qrcode::render::svg::Color("#29343a"))
-                                    .light_color(qrcode::render::svg::Color("#ffffff"))
-                                    .build()
-                                    .replacen("<?xml version=\"1.0\" standalone=\"yes\"?>", "", 1)
-                            ))
+                    div.mkc__card {
+                        div.mkc__main {
+                            p.mkc__label { "Send exactly" }
+                            p.mkc__amount { b { (amount) } " XMR" }
+                            p.mkc__addr { (d.address) }
+                        }
+                        @if let Some(svg) = qr {
+                            div.mkc__qr { (svg) }
+                        }
+                        div class={ "mkc__foot mkc__foot--" (class) } {
+                            span { b { (title) } " " (note) }
+                            a href=(uri) { "Open wallet" }
                         }
                     }
-                    p.mkc__label { "Send exactly" }
-                    p.mkc__amount { b { (amount) } " XMR" }
-                    p.mkc__label { "To this address" }
-                    p.mkc__addr { (d.address) }
-                    p.mkc__fine { a href=(uri) { "Open in my Monero wallet" } }
+                } @else {
+                    div class={ "mkc__state mkc__state--" (class) } {
+                        b { (title) }
+                        span { (note) }
+                    }
                 }
             }
         }

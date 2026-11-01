@@ -587,8 +587,8 @@ textarea { resize: vertical; min-height: 80px; }
 .refund small { display: block; color: var(--ink-soft); font-size: 0.82rem; margin-top: 6px; }
 #refund-status { font-weight: 700; color: var(--sage); }
 .mk-mount { border-radius: 14px; }
-.mk-frame { width: 100%; height: 500px; border: 0; display: block; background: transparent; }
-@media (max-width: 520px) { .mk-frame { height: 540px; } }
+.mk-frame { width: 100%; height: 210px; border: 0; display: block; background: transparent; }
+@media (max-width: 520px) { .mk-frame { height: 260px; } }
 
 /* the framed Monero card (/pay/<token>/monero) */
 body.mkc { display: block; min-height: 0; background: transparent; padding: 4px 2px 12px; text-align: center; }
@@ -598,12 +598,17 @@ body.mkc { display: block; min-height: 0; background: transparent; padding: 4px 
 .mkc__state--ok { background: #e4efe0; }
 .mkc__state--warn { background: #fbeee8; border-color: var(--clay); }
 .mkc__state--warn b { color: var(--clay); }
-.mkc__qr { width: 188px; margin: 16px auto 4px; padding: 6px; background: var(--white); border: 2px solid var(--ink); border-radius: 12px; transform: rotate(-1deg); box-shadow: var(--shadow-sketch); }
+.mkc__card { display: grid; grid-template-columns: minmax(0, 1fr) 92px; gap: 6px 14px; align-items: center; text-align: left; padding: 12px 14px; background: var(--white); border: 2px solid var(--ink); border-radius: 14px; }
+.mkc__qr { padding: 3px; background: var(--white); border: 1.5px solid var(--ink); border-radius: 8px; }
 .mkc__qr svg { display: block; width: 100%; height: auto; }
-.mkc__label { margin: 12px 0 2px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
-.mkc__amount { margin: 0; font-size: 1.1rem; color: var(--ink-soft); }
-.mkc__amount b { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 1.6rem; font-weight: 500; color: var(--ink); user-select: all; }
-.mkc__addr { margin: 0; font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.8rem; line-height: 1.45; overflow-wrap: anywhere; user-select: all; padding: 10px 12px; background: var(--white); border: 1.5px dashed #cfc4ae; border-radius: 10px; }
+.mkc__label { margin: 0 0 2px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-soft); }
+.mkc__amount { margin: 0; font-size: 0.95rem; color: var(--ink-soft); }
+.mkc__amount b { font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 1.4rem; font-weight: 500; color: var(--ink); user-select: all; }
+.mkc__addr { margin: 8px 0 0; font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace; font-size: 0.74rem; line-height: 1.35; overflow-wrap: anywhere; color: var(--ink-soft); user-select: all; }
+.mkc__foot { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 2px; padding-top: 8px; border-top: 1.5px dashed #e3dac6; font-size: 0.82rem; color: var(--ink-soft); }
+.mkc__foot b { color: var(--ink); }
+.mkc__foot--warn b { color: var(--clay); }
+@media (max-width: 340px) { .mkc__card { grid-template-columns: minmax(0, 1fr); } .mkc__qr { width: 110px; } }
 .mkc__fine { margin: 12px 0 0; font-size: 0.85rem; }
 .embed-tag { display: block; font-size: 0.78rem; color: var(--ink-soft); margin: 8px 2px 0; }
 .alt { margin-top: 20px; padding-top: 16px; border-top: 1.5px dashed #e3dac6; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-soft); }
