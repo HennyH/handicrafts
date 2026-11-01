@@ -209,7 +209,13 @@ try {
   const ref = (await c.locator(".bank__row--ref dd").textContent()).trim();
   check(/^[23456789ABCDEFGHJKMNPQRSTVWXYZ]{5}$/.test(ref), `bank page shows the short reference ${ref}`);
   await c.screenshot({ path: `${SHOTS}/7-pay-bank.png`, fullPage: true });
-  await c.locator('button:has-text("I\'ve sent the payment")').click();
+  // A double click must send the form once: the button goes into a loading state.
+  let claims = 0;
+  c.on("request", (r) => r.method() === "POST" && r.url().endsWith("/claim") && claims++);
+  const sent = c.locator('button:has-text("I\'ve sent the payment")');
+  await sent.evaluate((b) => { b.click(); setTimeout(() => b.click(), 20); }); // a second click while the first is in flight
+  await c.waitForSelector("text=Thanks, Rachel's been told");
+  check(claims === 1, "double-clicking \"I've sent the payment\" posts once");
   await c.waitForSelector("text=Thanks, Rachel's been told");
   check(true, "\"I've sent the payment\" shows the thanks page");
   await a.reload();

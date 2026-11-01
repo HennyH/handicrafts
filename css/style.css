@@ -639,3 +639,9 @@ body.mkc { display: block; min-height: 0; background: transparent; padding: 4px 
 
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--white); padding: 9px 16px; border-radius: 10px; font-size: 0.9rem; z-index: 40; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: reduce) { .received__hero img { animation: none; } .method[aria-current="true"] { transform: none; } }
+
+/* a submit button while its form is being sent (js/fixi-forms.js) */
+.btn.is-loading { cursor: progress; }
+.btn.is-loading::after { content: ""; display: inline-block; width: 0.8em; height: 0.8em; margin-left: 0.6em; vertical-align: -0.1em; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin 0.7s linear infinite; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .btn.is-loading::after { animation-duration: 1.6s; } }
