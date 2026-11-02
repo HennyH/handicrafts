@@ -244,7 +244,7 @@ isn't `/usr/bin/chromium`).
    - **Monero** (preferred): the shop makes a Monokulo order for the AUD total with the store's secret
      key and shows its address, QR code and progress in a card of its own. When Monokulo sends its signed `order.paid` webhook to
      `/webhooks/monokulo`, the order moves to **Paid** on its own, with a timeline comment holding the
-     amount, rate and the customer's refund address. A payment whose amount doesn't match never
+     amount and rate. A payment whose amount doesn't match never
      marks an order paid. If Monokulo can't price in AUD, the customer is told and offered bank
      transfer, and Rachel is emailed and sees a banner on `/admin`.
    - **PayID / bank transfer**: the page shows the details from LuCI and the short reference. "I've

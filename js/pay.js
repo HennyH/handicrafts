@@ -2,6 +2,38 @@
    a self-refreshing iframe and works without this; reloading the page shows
    the current state. */
 
+/* Clicking the Monero card's QR code opens a big copy of it. The card is a
+   same-origin iframe that reloads itself, so listen again after each load.
+   Without this script the QR is a plain monero: link that opens a wallet. */
+(() => {
+  const frame = document.querySelector("iframe.mk-frame");
+  if (!frame || !window.HTMLDialogElement) return;
+  const dlg = document.createElement("dialog");
+  dlg.className = "qr-zoom";
+  dlg.addEventListener("click", () => dlg.close());
+  document.body.appendChild(dlg);
+  frame.addEventListener("load", () => {
+    let doc;
+    try {
+      doc = frame.contentDocument;
+    } catch (e) {
+      return;
+    }
+    if (!doc) return;
+    doc.addEventListener("click", (e) => {
+      const link = e.target.closest && e.target.closest("a.mkc__qr");
+      const svg = link && link.querySelector("svg");
+      if (!svg) return;
+      e.preventDefault();
+      dlg.replaceChildren(svg.cloneNode(true));
+      const hint = document.createElement("p");
+      hint.textContent = "Scan with your Monero wallet. Click anywhere to close.";
+      dlg.appendChild(hint);
+      if (!dlg.open) dlg.showModal();
+    });
+  });
+})();
+
 (() => {
   const poll = document.querySelector("[data-poll]");
   if (!poll) return;

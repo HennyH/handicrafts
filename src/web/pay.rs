@@ -6,11 +6,11 @@ use std::{collections::HashMap, sync::Arc};
 use axum::{
     Form, Json,
     extract::{Path, Query},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
 };
 
-use super::{App, State, html, is_fixi, ok, oops, see_other};
+use super::{App, State, html, ok, oops, see_other};
 use crate::{
     db::{MonokuloOrder, Order},
     emails,
@@ -96,7 +96,6 @@ pub async fn page(
         &order,
         &lines,
         view,
-        q.contains_key("saved"),
     ))
 }
 
@@ -207,13 +206,23 @@ async fn ensure_monokulo_order(
 /// payment; the parent page moves on by itself when it is paid.
 pub async fn monero_card(axum::extract::State(app): State, Path(token): Path<String>) -> Response {
     use checkout::CardState;
-    let order = match find(&app, &token).await {
-        Ok(o) => o,
-        Err(r) => return r,
+    // This page is framed inside the pay page, so every outcome here is a
+    // small card, never a whole shop page.
+    let gone = || html(StatusCode::NOT_FOUND, checkout::monero_card(CardState::Gone, "", util::now()));
+    if token.len() != 24 || !token.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return gone();
+    }
+    let order = match app.db.order_by_token(token).await {
+        Ok(Some(o)) => o,
+        Ok(None) => return gone(),
+        Err(e) => {
+            eprintln!("handicrafts: {e}");
+            return ok(checkout::monero_card(CardState::Retry, "", util::now()));
+        }
     };
     let (Some(client), Ok(Some(mk))) = (app.monokulo(), app.db.monokulo_order(order.id).await)
     else {
-        return not_found();
+        return gone();
     };
     let url = format!("{}/checkout/{}", client.cfg().url, mk.mk_order_id);
     let page = match client.get_order(&mk.mk_order_id).await {
@@ -237,54 +246,6 @@ pub async fn status(axum::extract::State(app): State, Path(token): Path<String>)
             .into_response(),
         Err(r) => r,
     }
-}
-
-#[derive(serde::Deserialize)]
-pub struct RefundForm {
-    #[serde(default)]
-    refund_address: String,
-}
-
-pub async fn refund(
-    axum::extract::State(app): State,
-    Path(token): Path<String>,
-    headers: HeaderMap,
-    Form(f): Form<RefundForm>,
-) -> Response {
-    let order = match find(&app, &token).await {
-        Ok(o) => o,
-        Err(r) => return r,
-    };
-    let a = f.refund_address.trim().to_string();
-    let reply = |status: StatusCode, msg: &str| -> Response {
-        if is_fixi(&headers) {
-            (status, msg.to_string()).into_response()
-        } else {
-            see_other(&format!("/pay/{token}?method=monero&saved=1"))
-        }
-    };
-    if !a.is_empty() && !checkout::looks_like_monero_address(&a) {
-        return reply(
-            StatusCode::UNPROCESSABLE_ENTITY,
-            "That doesn't look like a Monero address. It should start with 4 or 8 and be 95 characters.",
-        );
-    }
-    if a == order.refund_address {
-        return reply(StatusCode::OK, if a.is_empty() { "" } else { "Saved." });
-    }
-    if let Err(e) = app.db.set_refund_address(order.id, a.clone()).await {
-        return oops(e);
-    }
-    let body = if a.is_empty() {
-        "Customer removed their refund address.".to_string()
-    } else {
-        format!("Customer gave a refund address: {a}")
-    };
-    let _ = app.db.add_event(order.id, "system", "customer", body).await;
-    reply(
-        StatusCode::OK,
-        if a.is_empty() { "Removed." } else { "Saved." },
-    )
 }
 
 #[derive(serde::Deserialize)]
@@ -348,5 +309,5 @@ pub async fn thanks(
     } else {
         return see_other(&format!("/pay/{token}"));
     };
-    ok(checkout::pay_page(&order, &lines, view, false))
+    ok(checkout::pay_page(&order, &lines, view))
 }

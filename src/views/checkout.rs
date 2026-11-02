@@ -289,7 +289,7 @@ pub enum PayView<'a> {
     },
 }
 
-pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView, refund_saved: bool) -> Markup {
+pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
     let base = format!("/pay/{}", order.pay_token);
     let panel = match &view {
         PayView::NotInvoiced => outcome(
@@ -306,9 +306,6 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView, refund_saved
         ),
         PayView::Paid => html! {
             (outcome(tick(), false, "Paid, thank you!", "Your payment has been received. Rachel will let you know when your order is on its way, or ready to pick up."))
-            @if !order.refund_address.is_empty() {
-                dl.facts { dt { "Refund address" } dd { (short_address(&order.refund_address)) } }
-            }
         },
         PayView::Claimed { method } => {
             let (title, text) = match method {
@@ -363,13 +360,6 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView, refund_saved
                         @match state {
                             MoneroState::Checkout { mk, cfg } => {
                                 p.step-label { i { (step) } "Send the Monero" }
-                                form.refund.field method="post" action={ (base) "/refund" }
-                                    fx-action={ (base) "/refund" } fx-method="post" fx-target="#refund-status" fx-swap="innerHTML" fx-trigger="change" {
-                                    label for="refund" { "Refund address " span.muted { "(optional)" } }
-                                    input type="text" #refund name="refund_address" placeholder="4… your own Monero address" autocomplete="off" spellcheck="false" maxlength="110" value=(order.refund_address);
-                                    small { "Only used if Rachel ever needs to send money back, say if a fabric runs out. " span #refund-status aria-live="polite" { @if refund_saved { "Saved." } } }
-                                    noscript { button.btn.btn--tiny type="submit" { "Save" } }
-                                }
                                 div.mk-mount data-poll=(format!("{base}/status")) {
                                     iframe.mk-frame src={ (base) "/monero" } title="Monero payment details" loading="eager" {}
                                 }
@@ -511,22 +501,6 @@ fn bank_details(order: &Order, b: &config::Bank) -> Markup {
     }
 }
 
-fn short_address(a: &str) -> String {
-    if a.len() > 20 {
-        format!("{}…{}", &a[..8], &a[a.len() - 6..])
-    } else {
-        a.to_string()
-    }
-}
-
-/// A plausible Monero address: standard (4…) or subaddress (8…), base58.
-pub fn looks_like_monero_address(a: &str) -> bool {
-    const B58: &str = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-    (a.starts_with('4') || a.starts_with('8'))
-        && (a.len() == 95 || a.len() == 106)
-        && a.chars().all(|c| B58.contains(c))
-}
-
 pub fn paid_status(s: Status) -> bool {
     matches!(s, Status::Paid | Status::Dispatched | Status::Completed)
 }
@@ -543,17 +517,6 @@ mod tests {
         );
         assert_eq!(to_webp("assets/products/x.svg"), "assets/products/x.svg");
     }
-
-    #[test]
-    fn monero_addresses() {
-        let a = format!("4{}", "A".repeat(94));
-        assert!(looks_like_monero_address(&a));
-        assert!(!looks_like_monero_address("4abc"));
-        assert!(
-            !looks_like_monero_address(&format!("4{}", "0".repeat(94))),
-            "0 isn't base58"
-        );
-    }
 }
 
 /// What the framed payment card shows.
@@ -561,6 +524,9 @@ pub enum CardState<'a> {
     Live(&'a crate::monokulo::MkDetail),
     /// Monokulo couldn't be read just now; the card tries again by itself.
     Retry,
+    /// The pay link doesn't match an order that can be paid by Monero. Shown
+    /// instead of a whole shop page, which would be framed inside the card.
+    Gone,
 }
 
 /// The Monero payment card the pay page frames: amount, address, QR code and
@@ -576,6 +542,15 @@ pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
             }
             p.mkc__fine { a href=(checkout_url) target="_blank" rel="noopener" { "Open the payment on Monokulo instead" } }
         },
+        CardState::Gone => {
+            refresh = 0;
+            html! {
+                div.mkc__state.mkc__state--warn {
+                    b { "This payment link doesn't work" }
+                    span { "It may have expired. Reload the page, or write to hello@rachelshandicrafts.com." }
+                }
+            }
+        }
         CardState::Live(d) => {
             let amount = crate::monokulo::xmr(d.xmr_amount_piconero);
             let left = d.expires_at - now;
@@ -607,7 +582,7 @@ pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
                     PreEscaped(
                         code.render::<qrcode::render::svg::Color>()
                             .quiet_zone(true)
-                            .min_dimensions(88, 88)
+                            .min_dimensions(176, 176)
                             .dark_color(qrcode::render::svg::Color("#29343a"))
                             .light_color(qrcode::render::svg::Color("#ffffff"))
                             .build()
@@ -626,7 +601,7 @@ pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
                             p.mkc__addr { (d.address) }
                         }
                         @if let Some(svg) = qr {
-                            div.mkc__qr { (svg) }
+                            a.mkc__qr href=(uri) title="Click to enlarge" aria-label="Enlarge the QR code" { (svg) }
                         }
                         div class={ "mkc__foot mkc__foot--" (class) } {
                             span { b { (title) } " " (note) }
@@ -650,7 +625,7 @@ pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
                 meta name="viewport" content="width=device-width, initial-scale=1.0";
                 meta name="robots" content="noindex";
                 meta name="referrer" content="no-referrer";
-                meta http-equiv="refresh" content=(refresh);
+                @if refresh > 0 { meta http-equiv="refresh" content=(refresh); }
                 title { "Monero payment" }
                 link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap";
                 link rel="stylesheet" href=(assets::url("css/style.css"));

@@ -114,11 +114,6 @@ pub fn decide(
         .as_deref()
         .map(|x| x.trim_end_matches('0').trim_end_matches('.').to_string())
         .unwrap_or_default();
-    let refund = if order.refund_address.is_empty() {
-        "not given".to_string()
-    } else {
-        order.refund_address.clone()
-    };
     let notice = |subject: String, headline: &str, body: &str, warning: bool| {
         admin.map(|a| {
             emails::admin_notice(
@@ -144,7 +139,7 @@ pub fn decide(
                 _ => String::new(),
             };
             let mut body = format!(
-                "Monero payment confirmed by Monokulo: {xmr} XMR for {} {}{rate}. Monokulo order {}, event {}. Refund address: {refund}.",
+                "Monero payment confirmed by Monokulo: {xmr} XMR for {} {}{rate}. Monokulo order {}, event {}.",
                 ev.amount.as_deref().unwrap_or("?"),
                 ev.currency.as_deref().unwrap_or("?"),
                 ev.order_id,
@@ -284,7 +279,6 @@ mod tests {
             customer_notes: String::new(),
             total_cents: 10500,
             currency: "AUD".into(),
-            refund_address: "4refund".into(),
             created_at: 0,
             updated_at: 0,
         }
@@ -299,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn paid_moves_invoiced_to_paid_with_refund_address() {
+    fn paid_moves_invoiced_to_paid() {
         let steps = decide(
             &order(Status::Invoiced),
             &ev("order.paid", "105.00"),
@@ -309,10 +303,7 @@ mod tests {
         assert_eq!(steps.len(), 1);
         let (_, _, body, change, mail) = &steps[0];
         assert_eq!(*change, Some(Status::Paid));
-        assert!(
-            body.contains("0.121916 XMR") && body.contains("4refund"),
-            "{body}"
-        );
+        assert!(body.contains("0.121916 XMR"), "{body}");
         assert!(mail.is_some());
     }
 

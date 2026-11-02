@@ -437,16 +437,11 @@ async fn monero_flow_from_pay_link_to_paid() {
     s.get(&format!("/pay/{}", o.pay_token)).await;
     assert_eq!(fake.calls.lock().unwrap().len(), 1);
 
-    // The customer leaves a refund address.
-    let addr = format!("4{}", "A".repeat(94));
-    let (st, _, _) = s
-        .post(
-            &format!("/pay/{}/refund", o.pay_token),
-            &[("refund_address", &addr)],
-            false,
-        )
-        .await;
-    assert_eq!(st, StatusCode::SEE_OTHER);
+    // A bad link or an order with no Monero payment gets a small card, not a
+    // whole shop page, because the pay page frames this URL.
+    let (st, bad) = s.get("/pay/nope/monero").await;
+    assert_eq!(st, StatusCode::NOT_FOUND);
+    assert!(bad.contains("doesn't work") && !bad.contains("<nav"), "{bad}");
 
     // A forged webhook is refused; a real one pays the order, once.
     let ev = serde_json::json!({
@@ -469,10 +464,6 @@ async fn monero_flow_from_pay_link_to_paid() {
     let events = s.app.db.events(o.id).await.unwrap();
     let payments: Vec<_> = events.iter().filter(|e| e.kind == "payment").collect();
     assert_eq!(payments.len(), 1, "handled once");
-    assert!(
-        payments[0].body.contains(&addr),
-        "refund address in the comment"
-    );
 
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
     assert!(page.contains("Paid, thank you!"));

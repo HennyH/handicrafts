@@ -1,6 +1,6 @@
 // The whole flow through a real browser (Chromium, via playwright-core):
 // shop -> cart -> checkout -> admin -> invoice -> Monokulo connect -> pay
-// page (Monero, refund address, webhook -> Paid) and bank transfer, on a
+// page (Monero, webhook -> Paid) and bank transfer, on a
 // phone too. Run it with scripts/test-browser.sh, which builds the shop and
 // starts it with HANDICRAFTS_MONOKULO_URL pointing at the fake Monokulo this
 // script serves on 127.0.0.1:9099.
@@ -75,10 +75,9 @@ async function webhook(event) {
 // ------------------------------------------------------------------ browser
 const browser = await chromium.launch({ executablePath: process.env.CHROME || "/usr/bin/chromium", args: ["--no-sandbox"] });
 const consoleErrors = [];
-let expect422 = false; // the bad refund address is refused on purpose
 const watch = (page, who) => {
   page.on("pageerror", (e) => consoleErrors.push(`${who}: ${e.message}`));
-  page.on("console", (m) => m.type() === "error" && !/favicon|fonts\.|fontshare/.test(m.text()) && !(expect422 && /status of 422/.test(m.text())) && consoleErrors.push(`${who}: ${m.text()}`));
+  page.on("console", (m) => m.type() === "error" && !/favicon|fonts\.|fontshare/.test(m.text()) && consoleErrors.push(`${who}: ${m.text()}`));
 };
 
 try {
@@ -160,21 +159,13 @@ try {
   const card = c.frameLocator("iframe.mk-frame");
   await card.locator(".mkc__addr").waitFor({ timeout: 10000 });
   check((await card.locator(".mkc__addr").textContent()).startsWith("8BBB") && (await card.locator(".mkc__amount").textContent()).includes("0.121916") && (await card.locator(".mkc__qr svg").count()) === 1, "the Monero card shows the address, amount and QR code read back from the API");
+  await card.locator("a.mkc__qr").click();
+  await c.waitForSelector("dialog.qr-zoom[open] svg", { timeout: 5000 });
+  check((await c.locator("dialog.qr-zoom svg").boundingBox()).width > 300, "clicking the QR code opens a large copy of it");
+  await c.screenshot({ path: `${SHOTS}/5a-qr-zoom.png` });
+  await c.locator("dialog.qr-zoom").click();
+  check((await c.locator("dialog.qr-zoom[open]").count()) === 0, "clicking the large QR code closes it");
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
-  const refund = "4" + "A".repeat(94);
-  await c.fill("#refund", refund);
-  await c.locator("#refund").blur();
-  await c.waitForSelector('#refund-status:has-text("Saved.")', { timeout: 5000 });
-  check(true, "refund address saved through fixi");
-  expect422 = true;
-  await c.fill("#refund", "not-an-address");
-  await c.locator("#refund").blur();
-  await c.waitForSelector('#refund-status:has-text("Monero address")', { timeout: 5000 });
-  expect422 = false;
-  check(true, "a bad refund address is refused with a reason");
-  await c.fill("#refund", refund);
-  await c.locator("#refund").blur();
-  await c.waitForSelector('#refund-status:has-text("Saved.")', { timeout: 5000 });
   await c.screenshot({ path: `${SHOTS}/5-pay-monero.png`, fullPage: true });
 
   const status = await webhook({ api_version: 2, event_id: "evt_e2e_1", event: "order.paid", order_id: fake.orders.at(-1) ? "order_e2e_" + fake.orders.length : "x", merchant_order_id: number, amount: "105.00", currency: "AUD", xmr_amount: "0.121916000000", fx_rate: "861.26", fx_source: "haveno" });
@@ -184,8 +175,7 @@ try {
   await c.screenshot({ path: `${SHOTS}/6-paid.png`, fullPage: true });
   await a.goto(SHOP + "/admin");
   await a.locator(`a:has-text("${number}")`).click();
-  const timeline = await a.locator(".timeline").textContent();
-  check((await a.locator(".detail-head .pill").textContent()).includes("Paid") && timeline.includes(refund), "admin shows Paid, with the refund address in the timeline");
+  check((await a.locator(".detail-head .pill").textContent()).includes("Paid"), "admin shows Paid");
 
   // --- second order: bank transfer
   await c.goto(SHOP + "/shop.html");

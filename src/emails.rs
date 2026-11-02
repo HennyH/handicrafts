@@ -347,7 +347,6 @@ mod tests {
             customer_notes: String::new(),
             total_cents: 10500,
             currency: "AUD".into(),
-            refund_address: String::new(),
             created_at: 0,
             updated_at: 0,
         }

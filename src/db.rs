@@ -134,13 +134,12 @@ pub struct Order {
     pub customer_notes: String,
     pub total_cents: i64,
     pub currency: String,
-    pub refund_address: String,
     pub created_at: i64,
     pub updated_at: i64,
 }
 
 const ORDER_COLS: &str = "id, number, bank_ref, pay_token, status, accepted, customer_name, customer_email, \
-    customer_phone, customer_address, customer_notes, total_cents, currency, refund_address, created_at, updated_at";
+    customer_phone, customer_address, customer_notes, total_cents, currency, created_at, updated_at";
 
 fn order_row(r: &Row) -> rusqlite::Result<Order> {
     let status: String = r.get(4)?;
@@ -158,9 +157,8 @@ fn order_row(r: &Row) -> rusqlite::Result<Order> {
         customer_notes: r.get(10)?,
         total_cents: r.get(11)?,
         currency: r.get(12)?,
-        refund_address: r.get(13)?,
-        created_at: r.get(14)?,
-        updated_at: r.get(15)?,
+        created_at: r.get(13)?,
+        updated_at: r.get(14)?,
     })
 }
 
@@ -481,18 +479,6 @@ impl Db {
             }
             change_status_tx(&tx, &current, to, accepted, actor)?;
             tx.commit().map_err(e)
-        })
-        .await
-    }
-
-    pub async fn set_refund_address(&self, order_id: i64, address: String) -> Result<()> {
-        self.call(move |c| {
-            c.execute(
-                "UPDATE orders SET refund_address = ?2, updated_at = ?3 WHERE id = ?1",
-                params![order_id, address, util::now()],
-            )
-            .map_err(e)?;
-            Ok(())
         })
         .await
     }

@@ -188,7 +188,6 @@ pub fn detail(d: Detail) -> Markup {
                                 dt { "Delivery" } dd.pre { (if o.customer_address.is_empty() { "—" } else { &o.customer_address }) }
                                 @if !o.customer_notes.is_empty() { dt { "Notes" } dd.pre { (o.customer_notes) } }
                                 dt { "Bank ref" } dd.mono.big { (o.bank_ref) }
-                                @if !o.refund_address.is_empty() { dt { "Refund address" } dd.mono.wrap { (o.refund_address) } }
                             }
                         }
                         section.card {

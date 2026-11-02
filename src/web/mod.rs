@@ -134,10 +134,6 @@ pub fn router(app: Arc<App>) -> Router {
         .route("/pay/{token}/status", get(pay::status))
         .route("/pay/{token}/monero", get(pay::monero_card))
         .route(
-            "/pay/{token}/refund",
-            post(pay::refund).layer(DefaultBodyLimit::max(4 * 1024)),
-        )
-        .route(
             "/pay/{token}/claim",
             post(pay::claim).layer(DefaultBodyLimit::max(4 * 1024)),
         )
