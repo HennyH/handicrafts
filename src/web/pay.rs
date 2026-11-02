@@ -92,11 +92,7 @@ pub async fn page(
             }
         }
     };
-    ok(checkout::pay_page(
-        &order,
-        &lines,
-        view,
-    ))
+    ok(checkout::pay_page(&order, &lines, view))
 }
 
 /// The Monokulo order to show for this order: the current one if its price
@@ -208,7 +204,12 @@ pub async fn monero_card(axum::extract::State(app): State, Path(token): Path<Str
     use checkout::CardState;
     // This page is framed inside the pay page, so every outcome here is a
     // small card, never a whole shop page.
-    let gone = || html(StatusCode::NOT_FOUND, checkout::monero_card(CardState::Gone, "", util::now()));
+    let gone = || {
+        html(
+            StatusCode::NOT_FOUND,
+            checkout::monero_card(CardState::Gone, "", util::now()),
+        )
+    };
     if token.len() != 24 || !token.chars().all(|c| c.is_ascii_alphanumeric()) {
         return gone();
     }

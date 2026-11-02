@@ -441,7 +441,10 @@ async fn monero_flow_from_pay_link_to_paid() {
     // whole shop page, because the pay page frames this URL.
     let (st, bad) = s.get("/pay/nope/monero").await;
     assert_eq!(st, StatusCode::NOT_FOUND);
-    assert!(bad.contains("doesn't work") && !bad.contains("<nav"), "{bad}");
+    assert!(
+        bad.contains("doesn't work") && !bad.contains("<nav"),
+        "{bad}"
+    );
 
     // A forged webhook is refused; a real one pays the order, once.
     let ev = serde_json::json!({
