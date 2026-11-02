@@ -248,6 +248,8 @@ img { max-width: 100%; display: block; }
 .lightbox .gallery-btn--next { right: 24px; }
 .lightbox--single .gallery-btn { display: none; }
 .lightbox__close { top: -14px; right: -14px; width: 36px; height: 36px; font-size: 1rem; }
+.lightbox__qr { width: min(80vw, 400px); padding: 8px; background: var(--white); border: 2px solid var(--ink); border-radius: 12px; line-height: 0; }
+.lightbox__qr svg { display: block; width: 100%; height: auto; }
 .lightbox__caption { margin: 10px 2px 2px; font-size: 0.88rem; color: var(--ink-soft); text-align: center; }
 .lightbox__count { color: var(--ink-soft); opacity: 0.8; }
 
@@ -604,10 +606,6 @@ body.mkc { display: block; min-height: 0; background: transparent; padding: 4px 
 .mkc__foot b { color: var(--ink); }
 .mkc__foot--warn b { color: var(--clay); }
 @media (max-width: 420px) { .mkc__card { grid-template-columns: minmax(0, 1fr) 120px; } .mkc__amount b { font-size: 1.05rem; } }
-.qr-zoom { border: 2px solid var(--ink); border-radius: 14px; padding: 12px; background: var(--white); width: min(92vw, 460px); box-shadow: var(--shadow-sketch); cursor: zoom-out; }
-.qr-zoom::backdrop { background: rgba(41, 52, 58, 0.55); }
-.qr-zoom svg { display: block; width: 100%; height: auto; }
-.qr-zoom p { margin: 8px 0 0; text-align: center; font-size: 0.85rem; color: var(--ink-soft); }
 .mkc__fine { margin: 12px 0 0; font-size: 0.85rem; }
 .embed-tag { display: block; font-size: 0.78rem; color: var(--ink-soft); margin: 8px 2px 0; }
 .alt { margin-top: 20px; padding-top: 16px; border-top: 1.5px dashed #e3dac6; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-soft); }

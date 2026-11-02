@@ -9,8 +9,16 @@
   const frame = document.querySelector("iframe.mk-frame");
   if (!frame || !window.HTMLDialogElement) return;
   const dlg = document.createElement("dialog");
-  dlg.className = "qr-zoom";
-  dlg.addEventListener("click", () => dlg.close());
+  dlg.className = "lightbox lightbox--qr";
+  dlg.innerHTML =
+    '<div class="lightbox__inner">' +
+    '<div class="lightbox__qr" data-qr></div>' +
+    '<button type="button" class="lightbox__close" aria-label="Close">✕</button>' +
+    '<p class="lightbox__caption">Scan with your Monero wallet</p></div>';
+  dlg.querySelector(".lightbox__close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => {
+    if (e.target === dlg) dlg.close();
+  });
   document.body.appendChild(dlg);
   frame.addEventListener("load", () => {
     let doc;
@@ -25,10 +33,7 @@
       const svg = link && link.querySelector("svg");
       if (!svg) return;
       e.preventDefault();
-      dlg.replaceChildren(svg.cloneNode(true));
-      const hint = document.createElement("p");
-      hint.textContent = "Scan with your Monero wallet. Click anywhere to close.";
-      dlg.appendChild(hint);
+      dlg.querySelector("[data-qr]").replaceChildren(svg.cloneNode(true));
       if (!dlg.open) dlg.showModal();
     });
   });

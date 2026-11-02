@@ -160,11 +160,11 @@ try {
   await card.locator(".mkc__addr").waitFor({ timeout: 10000 });
   check((await card.locator(".mkc__addr").textContent()).startsWith("8BBB") && (await card.locator(".mkc__amount").textContent()).includes("0.121916") && (await card.locator(".mkc__qr svg").count()) === 1, "the Monero card shows the address, amount and QR code read back from the API");
   await card.locator("a.mkc__qr").click();
-  await c.waitForSelector("dialog.qr-zoom[open] svg", { timeout: 5000 });
-  check((await c.locator("dialog.qr-zoom svg").boundingBox()).width > 300, "clicking the QR code opens a large copy of it");
+  await c.waitForSelector("dialog.lightbox--qr[open] svg", { timeout: 5000 });
+  check((await c.locator("dialog.lightbox--qr svg").boundingBox()).width > 300, "clicking the QR code opens a large copy of it");
   await c.screenshot({ path: `${SHOTS}/5a-qr-zoom.png` });
-  await c.locator("dialog.qr-zoom").click();
-  check((await c.locator("dialog.qr-zoom[open]").count()) === 0, "clicking the large QR code closes it");
+  await c.locator("dialog.lightbox--qr .lightbox__close").click();
+  check((await c.locator("dialog.lightbox--qr[open]").count()) === 0, "clicking the large QR code closes it");
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
   await c.screenshot({ path: `${SHOTS}/5-pay-monero.png`, fullPage: true });
 
