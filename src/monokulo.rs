@@ -374,11 +374,14 @@ pub fn sign(secret: &str, t: i64, body: &[u8]) -> String {
     format!("t={t},v1={hex}")
 }
 
-/// "0.121916" from piconero (12 decimals), trimmed to 6 places.
+/// "0.121916" from piconero (12 decimals). Never rounds: shows at least 6
+/// places, and up to all 12 when the amount needs them, so the payment URI
+/// and the displayed amount are exactly what is owed.
 pub fn xmr(piconero: i64) -> String {
     let whole = piconero / 1_000_000_000_000;
-    let frac = (piconero % 1_000_000_000_000) / 1_000_000;
-    format!("{whole}.{frac:06}")
+    let frac = format!("{:012}", piconero % 1_000_000_000_000);
+    let frac = frac.trim_end_matches('0');
+    format!("{whole}.{frac:0<6}")
 }
 
 /// Parse a decimal amount like "105.00" into cents.
@@ -486,6 +489,8 @@ mod tests {
     fn amounts() {
         assert_eq!(xmr(121_916_000_000), "0.121916");
         assert_eq!(xmr(1_500_000_000_000), "1.500000");
+        assert_eq!(xmr(121_916_003_100), "0.1219160031");
+        assert_eq!(xmr(1), "0.000000000001");
         assert_eq!(cents("105.00"), Some(10500));
         assert_eq!(cents("105"), Some(10500));
         assert_eq!(cents("105.5"), Some(10550));
