@@ -1,6 +1,6 @@
 [package]
 name = "handicrafts"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2024"
 # Tern and Tuta's SDK are GPL-3.0, and they are linked into the binary.
 license = "GPL-3.0-only"
