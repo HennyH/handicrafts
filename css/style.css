@@ -584,8 +584,9 @@ textarea { resize: vertical; min-height: 80px; }
 .step-label { display: flex; gap: 10px; align-items: baseline; margin: 0 0 10px; font-weight: 700; }
 .step-label i { font-style: normal; display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--white); font-size: 0.8rem; flex-shrink: 0; }
 .mk-mount { min-height: 120px; border-radius: 14px; }
-.mk-mount iframe { max-width: 100%; border: 0; display: block; margin: 0 auto; }
-.mk-loading { margin: 0; padding: 24px 16px; text-align: center; color: var(--ink-soft); border: 1.5px dashed #d9dde0; border-radius: 14px; }
+.mk-frame { width: 100%; max-width: 100%; border: 0; display: block; margin: 0 auto; height: 880px; }
+.mk-frame--tiny { height: 152px; }
+.mk-frame--compact { height: 380px; }
 .embed-tag { display: block; font-size: 0.78rem; color: var(--ink-soft); margin: 8px 2px 0; }
 .alt { margin-top: 20px; padding-top: 16px; border-top: 1.5px dashed #e3dac6; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; font-size: 0.9rem; color: var(--ink-soft); }
 

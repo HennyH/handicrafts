@@ -1,7 +1,7 @@
 //! The shared shell of every shop page: head, header and footer. Ported from
 //! the old `templates/base.html`.
 
-use maud::{DOCTYPE, Markup, PreEscaped, html};
+use maud::{DOCTYPE, Markup, html};
 
 use crate::assets;
 
@@ -26,15 +26,6 @@ impl<'a> Page<'a> {
     }
 }
 
-/// The inline head script from base.html: marks JS as available before first
-/// paint, and applies the full-res paper texture once it's known to be cached.
-const HEAD_SCRIPT: &str = r#"document.documentElement.classList.add("js");
-try {
-  if (localStorage.getItem("rh_paper_hires")) {
-    document.documentElement.style.setProperty("--paper-bg", 'url("/assets/art/paper_bg_100.webp")');
-  }
-} catch (e) {}"#;
-
 pub fn page(p: Page) -> Markup {
     html! {
         (DOCTYPE)
@@ -51,7 +42,7 @@ pub fn page(p: Page) -> Markup {
                 link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:ital,wght@0,500;0,600;0,700;0,800;1,600&family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap";
                 link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=stardom&display=swap";
                 link rel="stylesheet" href=(assets::url("css/style.css"));
-                script { (PreEscaped(HEAD_SCRIPT)) }
+                script src=(assets::url("js/head.js")) {}
                 script defer src=(assets::url("js/bg-swap.js")) {}
                 (p.head)
             }

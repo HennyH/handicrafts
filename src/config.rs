@@ -74,6 +74,14 @@ pub struct Monokulo {
     pub webhook_secret: String,
 }
 
+impl Monokulo {
+    /// The payer's checkout page for a Monokulo order. It is part of the
+    /// versioned API (`{api}/checkout/{order_id}`), not a path of its own.
+    pub fn checkout_url(&self, order_id: &str) -> String {
+        format!("{}/checkout/{}", self.api, order_id)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct MonokuloKeys {
     pub public_key: String,

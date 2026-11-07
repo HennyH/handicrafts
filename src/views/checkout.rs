@@ -316,15 +316,6 @@ pub enum PayView<'a> {
 
 pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
     let base = format!("/pay/{}", order.pay_token);
-    // Monokulo's checkout, mounted by js/pay.js: its script and the order to show.
-    let monokulo_script = match &view {
-        PayView::Choose {
-            method: Method::Monero,
-            monero: Some(MoneroState::Checkout { mk, cfg, layout }),
-            ..
-        } => Some((mk.mk_order_id.clone(), (*cfg).clone(), *layout)),
-        _ => None,
-    };
     let panel = match &view {
         PayView::NotInvoiced => outcome(
             html! { img src="/assets/doodles/envelope-seal.svg" alt="" style="width:46px"; },
@@ -392,15 +383,24 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                     (Method::Monero, Some(state), _) => {
                         @let step = if both { "2" } else { "1" };
                         @match state {
-                            MoneroState::Checkout { mk, cfg, .. } => {
+                            MoneroState::Checkout { mk, cfg, layout } => {
                                 p.step-label { i { (step) } "Send the Monero" }
+                                // Monokulo's checkout in a plain frame. It is cross-origin, so
+                                // its content can't be measured: the frame is sized to the
+                                // store's default layout (css/style.css). js/pay.js watches
+                                // data-poll and reloads once the order is paid.
                                 div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
-                                    p.mk-loading {
-                                        "Loading the Monero checkout… If it doesn't appear, "
-                                        a href={ (cfg.url) "/checkout/" (mk.mk_order_id) } target="_blank" rel="noopener" { "open it on Monokulo" } "."
-                                    }
+                                    iframe class=(format!("mk-frame mk-frame--{}", layout.unwrap_or("detailed")))
+                                        title="Monero payment"
+                                        src={ (cfg.checkout_url(&mk.mk_order_id)) "?theme=light" }
+                                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                                        allow="camera"
+                                        referrerpolicy="strict-origin" {}
                                 }
-                                p.embed-tag { "Monokulo's checkout. This page moves on by itself once the payment is seen." }
+                                p.embed-tag {
+                                    "Monokulo's checkout. This page moves on by itself once the payment is seen. If it doesn't appear, "
+                                    a href=(cfg.checkout_url(&mk.mk_order_id)) target="_blank" rel="noopener" { "open it on Monokulo" } "."
+                                }
                                 form.alt method="post" action={ (base) "/claim" } {
                                     input type="hidden" name="method" value="monero";
                                     span { "Paid from a wallet that can't scan this, or something went wrong?" }
@@ -473,15 +473,6 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
         script src=(assets::url("js/fixi-forms.js")) {}
         script src=(assets::url("js/cart.js")) {}
         script src=(assets::url("js/main.js")) {}
-        @if let Some((mk_id, cfg, layout)) = &monokulo_script {
-            script src={ (cfg.url) "/static/monokulo-client.js" } {}
-            script {
-                (PreEscaped(format!(
-                    "window.PAY_MONOKULO = {};",
-                    serde_json::json!({ "orderId": mk_id, "monokulo": cfg.url, "publicKey": cfg.public_key, "layout": layout })
-                )))
-            }
-        }
         script src=(assets::url("js/pay.js")) {}
     };
     page(p)
