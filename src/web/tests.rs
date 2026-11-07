@@ -405,7 +405,7 @@ async fn monero_flow_from_pay_link_to_paid() {
     s.invoice(o.id).await;
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
     assert!(
-        page.contains("<iframe") && page.contains("/checkout/order_abc?theme=light"),
+        page.contains("<iframe") && page.contains("/api/v1/checkout/order_abc?theme=light"),
         "frames the Monokulo order's checkout"
     );
     assert!(

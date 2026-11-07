@@ -392,14 +392,14 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                                 div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
                                     iframe class=(format!("mk-frame mk-frame--{}", layout.unwrap_or("detailed")))
                                         title="Monero payment"
-                                        src={ (cfg.url) "/checkout/" (mk.mk_order_id) "?theme=light" }
+                                        src={ (cfg.checkout_url(&mk.mk_order_id)) "?theme=light" }
                                         sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
                                         allow="camera"
                                         referrerpolicy="strict-origin" {}
                                 }
                                 p.embed-tag {
                                     "Monokulo's checkout. This page moves on by itself once the payment is seen. If it doesn't appear, "
-                                    a href={ (cfg.url) "/checkout/" (mk.mk_order_id) } target="_blank" rel="noopener" { "open it on Monokulo" } "."
+                                    a href=(cfg.checkout_url(&mk.mk_order_id)) target="_blank" rel="noopener" { "open it on Monokulo" } "."
                                 }
                                 form.alt method="post" action={ (base) "/claim" } {
                                     input type="hidden" name="method" value="monero";

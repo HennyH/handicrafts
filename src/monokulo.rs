@@ -215,7 +215,7 @@ impl Client {
         {
             return Some(layout);
         }
-        let url = format!("{}/checkout/{}", self.cfg.url, mk_order_id);
+        let url = self.cfg.checkout_url(mk_order_id);
         let page = self
             .http
             .get(url)

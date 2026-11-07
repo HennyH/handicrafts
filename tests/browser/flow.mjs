@@ -46,7 +46,7 @@ const server = http.createServer((req, res) => {
       res.writeHead(201, { "content-type": "application/json" });
       return res.end(JSON.stringify({ order_id: "order_e2e_" + fake.orders.length, xmr_amount_piconero: 121916000000, expires_at: Math.floor(Date.now() / 1000) + 900, status: "pending" }));
     }
-    const m = url.pathname.match(/^\/checkout\/(order_e2e_\d+)$/);
+    const m = url.pathname.match(/^\/api\/v1\/checkout\/(order_e2e_\d+)$/);
     if (m) {
       res.writeHead(200, { "content-type": "text/html" });
       return res.end(`<!doctype html><title>Fake Monokulo</title><p id="fake-mk">Fake Monokulo checkout for ${m[1]} (${url.search})</p>`);
@@ -121,7 +121,8 @@ try {
   await a.goto(SHOP + "/admin");
   check(await a.locator(`text=${number}`).isVisible(), "the order is on /admin");
   await a.locator(`a:has-text("${number}")`).click();
-  // Accepted gates Invoiced.
+  // Accepted gates Invoiced. The click above doesn't wait for the order's page.
+  await a.waitForSelector("#status", { state: "attached" });
   check(await a.locator('#status option[value="invoiced"]').isDisabled(), "Invoiced is greyed out until Accepted is ticked");
   await a.check("#accepted");
   check(!(await a.locator('#status option[value="invoiced"]').isDisabled()), "ticking Accepted enables Invoiced");
