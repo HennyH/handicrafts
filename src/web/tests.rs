@@ -448,6 +448,47 @@ async fn monero_flow_from_pay_link_to_paid() {
 }
 
 #[tokio::test]
+async fn a_new_code_replaces_one_that_ran_out_but_never_one_being_paid() {
+    let (url, fake) = fake_monokulo().await;
+    // Every code Monokulo hands out has already run out.
+    fake.answer.lock().unwrap().1["expires_at"] = serde_json::json!(util::now() - 1000);
+    let s = shop(Some(url)).await;
+    let o = s.place_order().await;
+    s.invoice(o.id).await;
+    let pay = format!("/pay/{}", o.pay_token);
+
+    // The alert is in the page, hidden, until the frame says the code is over.
+    let (_, page) = s.get(&pay).await;
+    assert!(page.contains("id=\"mk-expired\"") && page.contains("hidden role=\"alert\""));
+    assert!(page.contains(&format!("href=\"{pay}?method=monero\"")));
+    assert_eq!(fake.calls.lock().unwrap().len(), 1);
+
+    // Refreshing makes a new code once the old one has run out.
+    s.get(&pay).await;
+    assert_eq!(fake.calls.lock().unwrap().len(), 2);
+
+    // Money on its way: the same code stays, so nobody is asked to pay twice.
+    let event = |id: &str, name: &str| {
+        serde_json::json!({
+            "event_id": id, "event": name, "order_id": "order_abc",
+            "merchant_order_id": o.number, "amount": "105.00", "currency": "AUD"
+        })
+    };
+    for (id, name) in [("evt_1", "order.unconfirmed"), ("evt_2", "order.partial")] {
+        assert_eq!(s.webhook(&event(id, name), "whsec").await, StatusCode::OK);
+        let (_, page) = s.get(&pay).await;
+        assert!(page.contains("<iframe"));
+        assert_eq!(fake.calls.lock().unwrap().len(), 2, "{name}");
+    }
+
+    // If Monokulo then says it expired after all, a new code can be made.
+    let expired = event("evt_3", "order.expired");
+    assert_eq!(s.webhook(&expired, "whsec").await, StatusCode::OK);
+    s.get(&pay).await;
+    assert_eq!(fake.calls.lock().unwrap().len(), 3);
+}
+
+#[tokio::test]
 async fn no_aud_price_shows_an_error_and_alerts_the_admin_once() {
     let (url, fake) = fake_monokulo().await;
     *fake.answer.lock().unwrap() = (

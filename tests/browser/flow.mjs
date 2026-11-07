@@ -166,6 +166,34 @@ try {
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
   await c.screenshot({ path: `${SHOTS}/5-pay-monero.png`, fullPage: true });
 
+  // --- customer: the frame reports on the order while the tab sits open
+  const expired = c.locator("#mk-expired");
+  const seen = c.locator("#mk-seen");
+  const frameSays = async (message) => {
+    const frame = await (await c.locator("#mk-checkout iframe").elementHandle()).contentFrame();
+    await frame.evaluate((m) => window.parent.postMessage(m, "*"), message);
+  };
+  await c.evaluate(() => window.postMessage({ type: "monokulo:status", status: "expired" }, "*"));
+  await frameSays({ type: "monokulo:resize", height: 412 });
+  await c.waitForFunction(() => document.querySelector("#mk-checkout iframe").style.height === "412px");
+  check(await expired.isHidden(), "a message from anywhere but the frame is ignored");
+  check(true, "the frame takes the height the checkout reports");
+  await frameSays({ type: "monokulo:status", status: "unconfirmed" });
+  await seen.waitFor({ state: "visible" });
+  check((await c.locator("#mk-checkout iframe").count()) === 1, "a seen payment keeps the frame, with a note not to pay again");
+  await frameSays({ type: "monokulo:status", status: "expired" });
+  await expired.waitFor({ state: "visible" });
+  check((await c.locator("#mk-checkout iframe").count()) === 0 && (await seen.isHidden()), "a code that ran out takes the frame away and shows the alert");
+  check(await c.evaluate(() => document.querySelector("#mk-checkout").offsetHeight === 0), "the frame leaves no gap above the alert");
+  check(await c.evaluate(() => document.activeElement?.id === "mk-refresh"), "focus lands on the refresh button");
+  await c.screenshot({ path: `${SHOTS}/5b-pay-code-ran-out.png`, fullPage: true });
+  const expiredCode = await webhook({ api_version: 2, event_id: "evt_e2e_expired", event: "order.expired", order_id: "order_e2e_" + fake.orders.length, merchant_order_id: number });
+  check(expiredCode === 200, "signed order.expired webhook accepted");
+  const codesBefore = fake.orders.length;
+  await c.locator("#mk-refresh").click();
+  await c.waitForSelector("#mk-checkout iframe", { timeout: 10000 });
+  check(fake.orders.length === codesBefore + 1, "refreshing makes a new Monokulo order and frames it");
+
   const status = await webhook({ api_version: 2, event_id: "evt_e2e_1", event: "order.paid", order_id: fake.orders.at(-1) ? "order_e2e_" + fake.orders.length : "x", merchant_order_id: number, amount: "105.00", currency: "AUD", xmr_amount: "0.121916000000", fx_rate: "861.26", fx_source: "haveno" });
   check(status === 200, "signed order.paid webhook accepted");
   await c.waitForSelector('h2:has-text("Paid, thank you!")', { timeout: 20000 });
