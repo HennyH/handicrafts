@@ -56,23 +56,23 @@ pub fn checkout_main(form: &CheckoutForm, error: Option<&str>) -> Markup {
                     }
                     div.form-grid {
                         div.field {
-                            label for="name" { "Full name" }
+                            label for="name" { (field_icon("user")) "Name" (required_mark()) }
                             input type="text" #name name="name" required maxlength="120" autocomplete="name" value=(form.name);
                         }
                         div.field {
-                            label for="email" { "Email" }
+                            label for="email" { (field_icon("mail")) "Email" (required_mark()) }
                             input type="email" #email name="email" required maxlength="254" autocomplete="email" value=(form.email);
                         }
-                        div.field {
-                            label for="phone" { "Phone (optional)" }
+                        div.field.full {
+                            label for="phone" { (field_icon("phone")) "Phone (optional)" }
                             input type="tel" #phone name="phone" maxlength="40" autocomplete="tel" value=(form.phone);
                         }
                         div.field.full {
-                            label for="address" { "Delivery address, or say \"local pickup\"" }
+                            label for="address" { (field_icon("pin")) "Delivery address, or say \"local pickup\"" }
                             textarea #address name="address" maxlength="600" placeholder="I'm based in Perth WA — local pickup can be arranged, or let me know where to post it." { (form.address) }
                         }
                         div.field.full {
-                            label for="notes" { "Notes / customisation requests" }
+                            label for="notes" { (field_icon("note")) "Notes / customisation requests" }
                             textarea #notes name="notes" maxlength="2000" placeholder="Colour preferences, sizing, anything else handy to know." { (form.notes) }
                         }
                     }
@@ -81,6 +81,29 @@ pub fn checkout_main(form: &CheckoutForm, error: Option<&str>) -> Markup {
             }
         }
     }
+}
+
+/// Small stroke icon shown beside a form label.
+fn field_icon(kind: &str) -> Markup {
+    let body = match kind {
+        "user" => r#"<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7"/>"#,
+        "mail" => r#"<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>"#,
+        "phone" => {
+            r#"<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>"#
+        }
+        "pin" => {
+            r#"<path d="M12 21s7-6.2 7-11a7 7 0 0 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>"#
+        }
+        _ => r#"<path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8M8 17h6"/>"#,
+    };
+    html! {
+        svg.field__icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" { (PreEscaped(body)) }
+    }
+}
+
+/// Subtle red asterisk marking a required field.
+fn required_mark() -> Markup {
+    html! { span.req aria-hidden="true" title="Required" { " *" } }
 }
 
 pub fn checkout_page(form: &CheckoutForm, error: Option<&str>) -> Markup {

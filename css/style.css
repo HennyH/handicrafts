@@ -319,6 +319,8 @@ img { max-width: 100%; display: block; }
 .form-grid .full { grid-column: 1 / -1; }
 .field { margin-bottom: 18px; }
 label { display: block; font-weight: 500; font-size: 1rem; margin-bottom: 6px; }
+.field__icon { width: 1em; height: 1em; vertical-align: -0.15em; margin-right: 7px; color: var(--ink-soft); }
+.req { color: var(--clay); opacity: 0.75; }
 input[type="text"], input[type="email"], input[type="tel"], textarea {
   width: 100%; padding: 10px 12px; border: 2px solid var(--ink); border-radius: 10px;
   font-size: 0.95rem; background: var(--paper);
