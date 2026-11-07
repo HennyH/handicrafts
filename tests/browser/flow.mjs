@@ -162,7 +162,7 @@ try {
   await c.goto(SHOP + payPath);
   await c.waitForSelector("#fake-mk", { timeout: 10000 });
   const mk = await c.locator("#fake-mk").textContent();
-  check(mk.includes("order_e2e_") && mk.includes("pk_e2e") && mk.includes("view compact"), "Monokulo's checkout is mounted with the connected key, in its compact layout");
+  check(mk.includes("order_e2e_") && mk.includes("pk_e2e") && mk.includes("view undefined"), "Monokulo's checkout is mounted with the connected key, leaving the view to the store default");
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
   await c.screenshot({ path: `${SHOTS}/5-pay-monero.png`, fullPage: true });
 
