@@ -243,9 +243,8 @@ async fn make_code(app: &Arc<App>, order: &Order) -> Result<MonokuloOrder, Moner
     app.monokulo_starts.hit(&order.pay_token, now);
     let n = app.db.monokulo_order_count(order.id).await.unwrap_or(0);
     let key = format!("{}-{}", order.number, n + 1);
-    let description = format!("Order {} from Rachel's Handicrafts", order.number);
     match client
-        .create_order(order.total_cents, &order.number, &description, &key)
+        .create_order(order.total_cents, &order.number, &key)
         .await
     {
         Ok(mk) => {

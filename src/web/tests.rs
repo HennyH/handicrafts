@@ -432,10 +432,20 @@ async fn monero_flow_from_pay_link_to_paid() {
         !page.contains("monokulo-client.js") && !page.contains("<script>"),
         "no Monokulo library and no inline script"
     );
+    assert_eq!(
+        page.matches("method__radio").count(),
+        2,
+        "both ways to pay show as a choice"
+    );
     let call = fake.calls.lock().unwrap()[0].clone();
     assert_eq!(call["amount"], "105.00");
     assert_eq!(call["currency"], "AUD");
     assert_eq!(call["merchant_order_id"], o.number.as_str());
+    assert_eq!(call["show_merchant_order_id"], true);
+    assert!(
+        call.get("description").is_none(),
+        "the checkout's reference line already says which order it is"
+    );
 
     // A second visit reuses the order while its price holds.
     s.get(&format!("/pay/{}", o.pay_token)).await;
