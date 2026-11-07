@@ -59,6 +59,20 @@ fn http() -> reqwest::Client {
         .expect("http client")
 }
 
+/// The layout named by the checkout page's root element, e.g.
+/// `<div class="pay-wrap checkout-tiny" ...>`. No modifier means the default.
+fn layout_of(page: &str) -> Option<&'static str> {
+    let at = page.find("class=\"pay-wrap")?;
+    let class = page[at + 7..].split('"').next()?;
+    Some(if class.contains("checkout-tiny") {
+        "tiny"
+    } else if class.contains("checkout-compact") {
+        "compact"
+    } else {
+        "detailed"
+    })
+}
+
 /// Turn a failed answer into Monokulo's own words.
 async fn problem(res: reqwest::Response) -> (String, String) {
     let status = res.status();
@@ -152,11 +166,17 @@ pub async fn finish_connect(
 pub struct Client {
     http: reqwest::Client,
     cfg: config::Monokulo,
+    /// The store's default checkout layout, and when it was read.
+    layout: std::sync::Mutex<Option<(std::time::Instant, &'static str)>>,
 }
 
 impl Client {
     pub fn new(cfg: config::Monokulo) -> Client {
-        Client { http: http(), cfg }
+        Client {
+            http: http(),
+            cfg,
+            layout: Default::default(),
+        }
     }
 
     /// Ask Monokulo to send our webhook a signed `webhook.test` now.
@@ -181,6 +201,34 @@ impl Client {
         Ok(v.get("delivered")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false))
+    }
+
+    /// The layout ("tiny", "compact" or "detailed") the store's checkout
+    /// page uses by default, so the pay page can size the frame to match.
+    /// The frame is cross-origin, so its content can't be measured in the
+    /// browser; the page's own root class names the layout instead. Cached for
+    /// a few minutes. `None` if Monokulo can't be asked.
+    pub async fn checkout_layout(&self, mk_order_id: &str) -> Option<&'static str> {
+        const FRESH: std::time::Duration = std::time::Duration::from_secs(300);
+        if let Some((at, layout)) = *self.layout.lock().unwrap()
+            && at.elapsed() < FRESH
+        {
+            return Some(layout);
+        }
+        let url = format!("{}/checkout/{}", self.cfg.url, mk_order_id);
+        let page = self
+            .http
+            .get(url)
+            .timeout(std::time::Duration::from_secs(4))
+            .send()
+            .await
+            .ok()?
+            .text()
+            .await
+            .ok()?;
+        let layout = layout_of(&page)?;
+        *self.layout.lock().unwrap() = Some((std::time::Instant::now(), layout));
+        Some(layout)
     }
 
     pub fn cfg(&self) -> &config::Monokulo {
@@ -453,5 +501,19 @@ mod tests {
         assert_eq!(cents("105.500000"), Some(10550));
         assert_eq!(cents("105.501"), None);
         assert_eq!(cents("x"), None);
+    }
+}
+
+#[cfg(test)]
+mod layout_tests {
+    use super::layout_of;
+
+    #[test]
+    fn reads_the_layout_from_the_root_class() {
+        let page = |c: &str| format!("<body><div class=\"pay-wrap{c}\" id=\"checkout-root\">");
+        assert_eq!(layout_of(&page(" checkout-tiny")), Some("tiny"));
+        assert_eq!(layout_of(&page(" checkout-compact")), Some("compact"));
+        assert_eq!(layout_of(&page("")), Some("detailed"));
+        assert_eq!(layout_of("<html>nope</html>"), None);
     }
 }

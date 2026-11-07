@@ -288,6 +288,8 @@ pub enum MoneroState<'a> {
     Checkout {
         mk: &'a crate::db::MonokuloOrder,
         cfg: &'a config::Monokulo,
+        /// The store's default layout, to size the frame to.
+        layout: Option<&'static str>,
     },
     /// Monokulo couldn't price in AUD.
     NoPrice,
@@ -318,9 +320,9 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
     let monokulo_script = match &view {
         PayView::Choose {
             method: Method::Monero,
-            monero: Some(MoneroState::Checkout { mk, cfg }),
+            monero: Some(MoneroState::Checkout { mk, cfg, layout }),
             ..
-        } => Some((mk.mk_order_id.clone(), (*cfg).clone())),
+        } => Some((mk.mk_order_id.clone(), (*cfg).clone(), *layout)),
         _ => None,
     };
     let panel = match &view {
@@ -390,7 +392,7 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                     (Method::Monero, Some(state), _) => {
                         @let step = if both { "2" } else { "1" };
                         @match state {
-                            MoneroState::Checkout { mk, cfg } => {
+                            MoneroState::Checkout { mk, cfg, .. } => {
                                 p.step-label { i { (step) } "Send the Monero" }
                                 div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
                                     p.mk-loading {
@@ -471,12 +473,12 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
         script src=(assets::url("js/fixi-forms.js")) {}
         script src=(assets::url("js/cart.js")) {}
         script src=(assets::url("js/main.js")) {}
-        @if let Some((mk_id, cfg)) = &monokulo_script {
+        @if let Some((mk_id, cfg, layout)) = &monokulo_script {
             script src={ (cfg.url) "/static/monokulo-client.js" } {}
             script {
                 (PreEscaped(format!(
                     "window.PAY_MONOKULO = {};",
-                    serde_json::json!({ "orderId": mk_id, "monokulo": cfg.url, "publicKey": cfg.public_key })
+                    serde_json::json!({ "orderId": mk_id, "monokulo": cfg.url, "publicKey": cfg.public_key, "layout": layout })
                 )))
             }
         }
