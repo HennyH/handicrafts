@@ -28,7 +28,6 @@
         monokulo: cfg.monokulo,
         publicKey: cfg.publicKey,
         theme: "light",
-        view: "compact",
         width: "100%",
         // A hint only: the order is marked paid by the signed webhook, so
         // ask the shop rather than trusting the browser.
