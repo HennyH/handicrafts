@@ -385,10 +385,15 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                         @match state {
                             MoneroState::Checkout { mk, cfg, layout } => {
                                 p.step-label { i { (step) } "Send the Monero" }
-                                // Monokulo's checkout in a plain frame. It is cross-origin, so
-                                // its content can't be measured: the frame is sized to the
-                                // store's default layout (css/style.css). js/pay.js watches
-                                // data-poll and reloads once the order is paid.
+                                div #mk-seen .mk-notice .mk-notice--seen hidden role="status" {
+                                    b.mk-notice__title { (seen_icon()) "We've seen your payment" }
+                                    p { "It's waiting for confirmations on the Monero network. You don't need to pay again. This page moves on by itself." }
+                                }
+                                // Monokulo's checkout in a plain frame, sized to the store's
+                                // default layout (css/style.css) until it reports its own
+                                // height. js/pay.js follows the status the frame posts, showing
+                                // #mk-seen and #mk-expired, watches data-poll and reloads once
+                                // the order is paid.
                                 div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
                                     iframe class=(format!("mk-frame mk-frame--{}", layout.unwrap_or("detailed")))
                                         title="Monero payment"
@@ -400,6 +405,11 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                                 p.embed-tag {
                                     "Monokulo's checkout. This page moves on by itself once the payment is seen. If it doesn't appear, "
                                     a href=(cfg.checkout_url(&mk.mk_order_id)) target="_blank" rel="noopener" { "open it on Monokulo" } "."
+                                }
+                                div #mk-expired .mk-notice hidden role="alert" {
+                                    b.mk-notice__title { (expired_icon()) "This payment code has run out" }
+                                    p { "Monero's price keeps moving, so each code only lasts a little while. Please don't send to the old one. Refresh for a new code: you'll still pay " (util::aud(order.total_cents)) " AUD, but the amount of Monero may change." }
+                                    a #mk-refresh .btn .btn--accent .btn--with-icon href={ (base) "?method=monero" } { (refresh_icon()) span { "Refresh payment code" } }
                                 }
                                 form.alt method="post" action={ (base) "/claim" } {
                                     input type="hidden" name="method" value="monero";
@@ -484,6 +494,32 @@ fn outcome(mark: Markup, waiting: bool, title: &str, text: &str) -> Markup {
             div.outcome__mark.outcome__mark--wait[waiting] { (mark) }
             h2 { (title) }
             p { (text) }
+        }
+    }
+}
+
+fn seen_icon() -> Markup {
+    html! {
+        svg viewBox="0 0 24 24" fill="none" stroke="#56704d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" {
+            circle cx="12" cy="12" r="9" {}
+            path d="M8 12.5 L11 15.5 L16 9.5" {}
+        }
+    }
+}
+
+fn expired_icon() -> Markup {
+    html! {
+        svg viewBox="0 0 24 24" fill="none" stroke="#a67f38" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" {
+            circle cx="12" cy="13" r="8" {}
+            path d="M12 9 V13 L14.5 15 M9 2.5 H15" {}
+        }
+    }
+}
+
+fn refresh_icon() -> Markup {
+    html! {
+        svg.btn__icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" {
+            path d="M20 11 A8 8 0 1 0 18 17.5 M20 5 V11 H14" {}
         }
     }
 }

@@ -112,8 +112,11 @@ async fn ensure_monokulo_order(
     let client = app.monokulo().ok_or(MoneroState::Unavailable)?;
     let now = util::now();
     if let Ok(Some(mk)) = app.db.monokulo_order(order.id).await {
-        let live =
-            mk.expires_at > now + 60 && !matches!(mk.status.as_str(), "expired" | "cancelled");
+        // Money is on its way to this one, whatever the time: a new code here
+        // would ask the customer to pay again.
+        let being_paid = matches!(mk.status.as_str(), "unconfirmed" | "confirming" | "partial");
+        let live = being_paid
+            || mk.expires_at > now + 60 && !matches!(mk.status.as_str(), "expired" | "cancelled");
         if live && mk.amount_cents == order.total_cents {
             return Ok(mk);
         }
