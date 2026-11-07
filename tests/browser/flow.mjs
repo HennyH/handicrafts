@@ -46,6 +46,10 @@ const server = http.createServer((req, res) => {
       res.writeHead(201, { "content-type": "application/json" });
       return res.end(JSON.stringify({ order_id: "order_e2e_" + fake.orders.length, xmr_amount_piconero: 121916000000, expires_at: Math.floor(Date.now() / 1000) + 900, status: "pending" }));
     }
+    if (/^\/api\/v1\/orders\/order_e2e_\d+$/.test(url.pathname)) {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(JSON.stringify({ status: "expired", amount_received_piconero: fake.received }));
+    }
     const m = url.pathname.match(/^\/api\/v1\/checkout\/(order_e2e_\d+)$/);
     if (m) {
       res.writeHead(200, { "content-type": "text/html" });
@@ -181,15 +185,28 @@ try {
   await frameSays({ type: "monokulo:status", status: "unconfirmed" });
   await seen.waitFor({ state: "visible" });
   check((await c.locator("#mk-checkout iframe").count()) === 1, "a seen payment keeps the frame, with a note not to pay again");
-  await frameSays({ type: "monokulo:status", status: "expired" });
-  await expired.waitFor({ state: "visible" });
-  check((await c.locator("#mk-checkout iframe").count()) === 0 && (await seen.isHidden()), "a code that ran out takes the frame away and shows the alert");
-  check(await c.evaluate(() => document.querySelector("#mk-checkout").offsetHeight === 0), "the frame leaves no gap above the alert");
-  check(await c.evaluate(() => document.activeElement?.id === "mk-refresh"), "focus lands on the refresh button");
-  await c.screenshot({ path: `${SHOTS}/5b-pay-code-ran-out.png`, fullPage: true });
   const expiredCode = await webhook({ api_version: 2, event_id: "evt_e2e_expired", event: "order.expired", order_id: "order_e2e_" + fake.orders.length, merchant_order_id: number });
   check(expiredCode === 200, "signed order.expired webhook accepted");
+  fake.received = 0;
+  await frameSays({ type: "monokulo:status", status: "expired" });
+  await expired.waitFor({ state: "visible" });
+  check((await c.locator("#mk-checkout iframe").count()) === 0 && (await seen.count()) === 0, "a code that ran out takes the frame away and shows the alert");
+  check(await c.evaluate(() => document.activeElement?.id === "mk-refresh"), "focus lands on the refresh button");
+  await c.screenshot({ path: `${SHOTS}/5b-pay-code-ran-out.png`, fullPage: true });
+  // The page's scripts leave an empty style on a swapped-in hidden input.
+  const panelHtml = () => c.locator("#mk-panel").evaluate((p) => p.outerHTML.replaceAll(' style=""', ""));
+  const swapped = await panelHtml();
   const codesBefore = fake.orders.length;
+  await c.reload();
+  check((await panelHtml()) === swapped, "reloading shows exactly the panel the tab swapped in");
+  check(fake.orders.length === codesBefore, "neither makes a new code by itself");
+  fake.received = 5;
+  await c.reload();
+  await c.locator("#mk-part-paid").waitFor({ state: "visible" });
+  check((await c.locator("#mk-refresh").count()) === 0, "a part-paid code offers no new code");
+  await c.screenshot({ path: `${SHOTS}/5c-pay-part-paid.png`, fullPage: true });
+  fake.received = 0;
+  await c.reload();
   await c.locator("#mk-refresh").click();
   await c.waitForSelector("#mk-checkout iframe", { timeout: 10000 });
   check(fake.orders.length === codesBefore + 1, "refreshing makes a new Monokulo order and frames it");

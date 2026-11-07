@@ -11,7 +11,7 @@ use axum::{
     body::Body,
     extract::connect_info::MockConnectInfo,
     http::{Request, StatusCode, header},
-    routing::post,
+    routing::{get, post},
 };
 use base64::Engine as _;
 use http_body_util::BodyExt;
@@ -30,6 +30,8 @@ struct Fake {
     auth: Mutex<Vec<String>>,
     /// Bodies sent to the plugin connect /finish.
     finishes: Mutex<Vec<serde_json::Value>>,
+    /// What the fake Monokulo answers to GET /api/v1/orders/{id}.
+    order_now: Mutex<(u16, serde_json::Value)>,
 }
 
 async fn fake_monokulo() -> (String, Arc<Fake>) {
@@ -41,9 +43,13 @@ async fn fake_monokulo() -> (String, Arc<Fake>) {
         calls: Mutex::new(vec![]),
         auth: Mutex::new(vec![]),
         finishes: Mutex::new(vec![]),
+        order_now: Mutex::new((
+            200,
+            serde_json::json!({ "status": "expired", "amount_received_piconero": 0 }),
+        )),
     });
     let f = fake.clone();
-    let (f2, f3) = (fake.clone(), fake.clone());
+    let (f2, f3, f4) = (fake.clone(), fake.clone(), fake.clone());
     let bearer = |h: &axum::http::HeaderMap| {
         h.get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
@@ -81,6 +87,20 @@ async fn fake_monokulo() -> (String, Arc<Fake>) {
                 async move {
                     f.auth.lock().unwrap().push(bearer(&headers));
                     (StatusCode::OK, [(header::CONTENT_TYPE, "application/json")], r#"{"delivered":true}"#.to_string())
+                }
+            }),
+        )
+        .route(
+            "/api/v1/orders/{id}",
+            get(move || {
+                let f = f4.clone();
+                async move {
+                    let (code, json) = f.order_now.lock().unwrap().clone();
+                    (
+                        StatusCode::from_u16(code).unwrap(),
+                        [(header::CONTENT_TYPE, "application/json")],
+                        json.to_string(),
+                    )
                 }
             }),
         )
@@ -447,45 +467,131 @@ async fn monero_flow_from_pay_link_to_paid() {
     assert!(page.contains("Paid, thank you!"));
 }
 
+/// A page load shows exactly what a tab left open swaps in.
+async fn page_and_panel(s: &Shop, token: &str) -> String {
+    let (_, page) = s.get(&format!("/pay/{token}")).await;
+    let (st, panel) = s.get(&format!("/pay/{token}/panel")).await;
+    assert_eq!(st, StatusCode::OK);
+    assert!(panel.starts_with("<div id=\"mk-panel\""), "{panel}");
+    assert!(
+        page.contains(&panel),
+        "the page and the panel differ:\n{panel}\n\n{page}"
+    );
+    panel
+}
+
 #[tokio::test]
-async fn a_new_code_replaces_one_that_ran_out_but_never_one_being_paid() {
+async fn the_page_and_the_panel_agree_and_only_refresh_replaces_a_code() {
     let (url, fake) = fake_monokulo().await;
-    // Every code Monokulo hands out has already run out.
-    fake.answer.lock().unwrap().1["expires_at"] = serde_json::json!(util::now() - 1000);
     let s = shop(Some(url)).await;
     let o = s.place_order().await;
     s.invoice(o.id).await;
-    let pay = format!("/pay/{}", o.pay_token);
-
-    // The alert is in the page, hidden, until the frame says the code is over.
-    let (_, page) = s.get(&pay).await;
-    assert!(page.contains("id=\"mk-expired\"") && page.contains("hidden role=\"alert\""));
-    assert!(page.contains(&format!("href=\"{pay}?method=monero\"")));
-    assert_eq!(fake.calls.lock().unwrap().len(), 1);
-
-    // Refreshing makes a new code once the old one has run out.
-    s.get(&pay).await;
-    assert_eq!(fake.calls.lock().unwrap().len(), 2);
-
-    // Money on its way: the same code stays, so nobody is asked to pay twice.
+    let token = o.pay_token.as_str();
+    let new_code = format!("/pay/{token}/new-code");
+    let calls = || fake.calls.lock().unwrap().len();
     let event = |id: &str, name: &str| {
         serde_json::json!({
             "event_id": id, "event": name, "order_id": "order_abc",
             "merchant_order_id": o.number, "amount": "105.00", "currency": "AUD"
         })
     };
-    for (id, name) in [("evt_1", "order.unconfirmed"), ("evt_2", "order.partial")] {
-        assert_eq!(s.webhook(&event(id, name), "whsec").await, StatusCode::OK);
-        let (_, page) = s.get(&pay).await;
-        assert!(page.contains("<iframe"));
-        assert_eq!(fake.calls.lock().unwrap().len(), 2, "{name}");
-    }
 
-    // If Monokulo then says it expired after all, a new code can be made.
-    let expired = event("evt_3", "order.expired");
-    assert_eq!(s.webhook(&expired, "whsec").await, StatusCode::OK);
-    s.get(&pay).await;
-    assert_eq!(fake.calls.lock().unwrap().len(), 3);
+    // The first visit makes a code; a press on Refresh leaves a live one alone.
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("<iframe") && !panel.contains("mk-expired"));
+    assert!(panel.contains(&format!("/pay/{token}/panel?over=order_abc")));
+    assert_eq!(calls(), 1);
+    s.post(&new_code, &[], false).await;
+    assert_eq!(calls(), 1);
+
+    // A payment on its way: the frame stays, and the note shows.
+    s.webhook(&event("evt_1", "order.unconfirmed"), "whsec")
+        .await;
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("<iframe"));
+    assert!(
+        panel.contains("class=\"mk-notice mk-notice--seen\" id=\"mk-seen\" role=\"status\""),
+        "{panel}"
+    );
+    s.post(&new_code, &[], false).await;
+    assert_eq!(calls(), 1);
+
+    // It ran out with nothing received: an alert, and no new code by itself.
+    s.webhook(&event("evt_2", "order.expired"), "whsec").await;
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("has run out") && panel.contains(&new_code));
+    assert!(!panel.contains("<iframe") && !panel.contains("Already sent some"));
+    assert_eq!(calls(), 1);
+
+    // Monokulo can't say what arrived: the alert, with a word for anyone who paid.
+    *fake.order_now.lock().unwrap() = (500, serde_json::json!({ "detail": "down" }));
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("has run out") && panel.contains("Already sent some"));
+
+    // Some of the money arrived: no way to a new code, even by posting for one.
+    *fake.order_now.lock().unwrap() = (
+        200,
+        serde_json::json!({ "status": "expired", "amount_received_piconero": 5 }),
+    );
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("Part of your payment arrived"));
+    assert!(!panel.contains(&new_code) && !panel.contains("<iframe"));
+    s.post(&new_code, &[], false).await;
+    assert_eq!(calls(), 1);
+
+    // Nothing arrived: Refresh makes one code, and a second press none.
+    *fake.order_now.lock().unwrap() = (
+        200,
+        serde_json::json!({ "status": "expired", "amount_received_piconero": 0 }),
+    );
+    fake.answer.lock().unwrap().1["order_id"] = serde_json::json!("order_new");
+    let (st, _, _) = s.post(&new_code, &[], false).await;
+    assert_eq!(st, StatusCode::SEE_OTHER);
+    assert_eq!(calls(), 2);
+    s.post(&new_code, &[], false).await;
+    assert_eq!(calls(), 2);
+    let panel = page_and_panel(&s, token).await;
+    assert!(panel.contains("/api/v1/checkout/order_new"));
+
+    // Once it's paid there is no panel to swap in, so the tab reloads.
+    let paid = serde_json::json!({
+        "event_id": "evt_3", "event": "order.paid", "order_id": "order_new",
+        "merchant_order_id": o.number, "amount": "105.00", "currency": "AUD"
+    });
+    s.webhook(&paid, "whsec").await;
+    let (st, _) = s.get(&format!("/pay/{token}/panel")).await;
+    assert_eq!(st, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn a_code_past_its_time_is_over_and_a_frame_is_never_shown_twice_as_over() {
+    let (url, fake) = fake_monokulo().await;
+    let s = shop(Some(url)).await;
+    let o = s.place_order().await;
+    s.invoice(o.id).await;
+    let token = o.pay_token.as_str();
+
+    // The frame says it's over, and Monokulo still says it's open: show the
+    // alert for that code rather than the same frame, which would ask again.
+    s.get(&format!("/pay/{token}")).await;
+    let (_, panel) = s.get(&format!("/pay/{token}/panel?over=order_abc")).await;
+    assert!(panel.contains("Already sent some") && !panel.contains("<iframe"));
+    // A frame for some other code is no reason to doubt this one.
+    let (_, panel) = s.get(&format!("/pay/{token}/panel?over=order_old")).await;
+    assert!(panel.contains("<iframe"));
+
+    // Past its time with no webhook yet: Monokulo is asked, and the page agrees.
+    {
+        let answer = &mut fake.answer.lock().unwrap().1;
+        answer["order_id"] = serde_json::json!("order_two");
+        answer["expires_at"] = serde_json::json!(util::now() - 10);
+    }
+    let o2 = s.place_order().await;
+    s.invoice(o2.id).await;
+    s.get(&format!("/pay/{}", o2.pay_token)).await;
+    let panel = page_and_panel(&s, &o2.pay_token).await;
+    assert!(panel.contains("has run out") && !panel.contains("Already sent some"));
+    assert_eq!(fake.calls.lock().unwrap().len(), 2, "one code per order");
 }
 
 #[tokio::test]
