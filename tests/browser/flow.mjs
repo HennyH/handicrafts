@@ -46,13 +46,10 @@ const server = http.createServer((req, res) => {
       res.writeHead(201, { "content-type": "application/json" });
       return res.end(JSON.stringify({ order_id: "order_e2e_" + fake.orders.length, xmr_amount_piconero: 121916000000, expires_at: Math.floor(Date.now() / 1000) + 900, status: "pending" }));
     }
-    if (url.pathname === "/static/monokulo-client.js") {
-      res.writeHead(200, { "content-type": "text/javascript" });
-      return res.end(`window.Monokulo = { mount(target, id, opts) {
-        const el = typeof target === "string" ? document.querySelector(target) : target;
-        el.innerHTML = '<div id="fake-mk" style="padding:24px;border:2px solid #f26822;border-radius:12px">Fake Monokulo checkout for ' + id + ' (key ' + opts.publicKey + ', view ' + opts.view + ')</div>';
-        window.__mkOpts = opts; return { destroy() {} };
-      } };`);
+    const m = url.pathname.match(/^\/checkout\/(order_e2e_\d+)$/);
+    if (m) {
+      res.writeHead(200, { "content-type": "text/html" });
+      return res.end(`<!doctype html><title>Fake Monokulo</title><p id="fake-mk">Fake Monokulo checkout for ${m[1]} (${url.search})</p>`);
     }
     if (url.pathname === "/api/v1/webhook-tests") {
       res.writeHead(200, { "content-type": "application/json" });
@@ -160,9 +157,11 @@ try {
 
   // --- customer: pay by Monero
   await c.goto(SHOP + payPath);
-  await c.waitForSelector("#fake-mk", { timeout: 10000 });
-  const mk = await c.locator("#fake-mk").textContent();
-  check(mk.includes("order_e2e_") && mk.includes("pk_e2e") && mk.includes("view undefined"), "Monokulo's checkout is mounted with the connected key, leaving the view to the store default");
+  await c.waitForSelector("#mk-checkout iframe", { timeout: 10000 });
+  const mk = await c.frameLocator("#mk-checkout iframe").locator("#fake-mk").textContent({ timeout: 10000 });
+  const src = await c.locator("#mk-checkout iframe").getAttribute("src");
+  check(mk.includes("order_e2e_") && /theme=light/.test(src) && !/view=/.test(src), "Monokulo's checkout is a plain frame on the order's checkout page, leaving the view to the store default");
+  check((await c.locator("script:not([src])").count()) === 0, "the pay page has no inline script");
   check(fake.orders.at(-1)?.auth === "Bearer sk_e2e" && fake.orders.at(-1)?.amount === "105.00" && fake.orders.at(-1)?.currency === "AUD", "the Monokulo order was made server-side for 105.00 AUD with the secret key");
   await c.screenshot({ path: `${SHOTS}/5-pay-monero.png`, fullPage: true });
 

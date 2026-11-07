@@ -404,9 +404,14 @@ async fn monero_flow_from_pay_link_to_paid() {
 
     s.invoice(o.id).await;
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
-    assert!(page.contains("order_abc"), "mounts the Monokulo order");
-    assert!(page.contains("/static/monokulo-client.js"));
-    assert!(page.contains("pk_test"), "the public key for the embed");
+    assert!(
+        page.contains("<iframe") && page.contains("/checkout/order_abc?theme=light"),
+        "frames the Monokulo order's checkout"
+    );
+    assert!(
+        !page.contains("monokulo-client.js") && !page.contains("<script>"),
+        "no Monokulo library and no inline script"
+    );
     let call = fake.calls.lock().unwrap()[0].clone();
     assert_eq!(call["amount"], "105.00");
     assert_eq!(call["currency"], "AUD");
@@ -629,7 +634,7 @@ async fn connect_flow_fetches_the_keys_and_takes_over() {
 
     // The connected keys are the ones used.
     let (_, page) = s.get(&format!("/pay/{}", o.pay_token)).await;
-    assert!(page.contains("pk_connected"));
+    assert!(page.contains("<iframe"));
     assert_eq!(
         fake.auth.lock().unwrap().last().unwrap(),
         "Bearer sk_connected"
