@@ -217,7 +217,7 @@ pub fn decide(
                 "system",
                 "webhook",
                 format!(
-                    "Monokulo order {} expired unpaid. The pay link makes a new one at the current rate.",
+                    "Monokulo order {} expired unpaid. The customer can get a new one at the current rate from the pay link.",
                     ev.order_id
                 ),
                 None,

@@ -283,14 +283,23 @@ impl Method {
 }
 
 /// What the Monero part of the pay page shows.
-pub enum MoneroState<'a> {
+#[allow(clippy::large_enum_variant)]
+pub enum MoneroState {
     /// Monokulo's checkout for this Monokulo order.
     Checkout {
-        mk: &'a crate::db::MonokuloOrder,
-        cfg: &'a config::Monokulo,
+        mk: crate::db::MonokuloOrder,
+        cfg: config::Monokulo,
         /// The store's default layout, to size the frame to.
         layout: Option<&'static str>,
+        /// A payment to it has been seen, so say not to pay again.
+        seen: bool,
     },
+    /// The code ran out with nothing received: offer a new one.
+    RanOut,
+    /// The code ran out with some received: only Rachel can sort that out.
+    PartPaid,
+    /// The code ran out and Monokulo can't say what it received.
+    Unknown,
     /// Monokulo couldn't price in AUD.
     NoPrice,
     /// Monokulo unreachable or refused.
@@ -299,13 +308,14 @@ pub enum MoneroState<'a> {
     NotStarted,
 }
 
+#[allow(clippy::large_enum_variant)]
 pub enum PayView<'a> {
     NotInvoiced,
     Cancelled,
     Paid,
     Choose {
         method: Method,
-        monero: Option<MoneroState<'a>>,
+        monero: Option<MoneroState>,
         bank: Option<&'a config::Bank>,
     },
     /// After "I've paid".
@@ -381,59 +391,7 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                 }
                 @match (method, monero, bank) {
                     (Method::Monero, Some(state), _) => {
-                        @let step = if both { "2" } else { "1" };
-                        @match state {
-                            MoneroState::Checkout { mk, cfg, layout } => {
-                                p.step-label { i { (step) } "Send the Monero" }
-                                div #mk-seen .mk-notice .mk-notice--seen hidden role="status" {
-                                    b.mk-notice__title { (seen_icon()) "We've seen your payment" }
-                                    p { "It's waiting for confirmations on the Monero network. You don't need to pay again. This page moves on by itself." }
-                                }
-                                // Monokulo's checkout in a plain frame, sized to the store's
-                                // default layout (css/style.css) until it reports its own
-                                // height. js/pay.js follows the status the frame posts, showing
-                                // #mk-seen and #mk-expired, watches data-poll and reloads once
-                                // the order is paid.
-                                div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
-                                    iframe class=(format!("mk-frame mk-frame--{}", layout.unwrap_or("detailed")))
-                                        title="Monero payment"
-                                        src={ (cfg.checkout_url(&mk.mk_order_id)) "?theme=light" }
-                                        sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
-                                        allow="camera"
-                                        referrerpolicy="strict-origin" {}
-                                }
-                                p.embed-tag {
-                                    "Monokulo's checkout. This page moves on by itself once the payment is seen. If it doesn't appear, "
-                                    a href=(cfg.checkout_url(&mk.mk_order_id)) target="_blank" rel="noopener" { "open it on Monokulo" } "."
-                                }
-                                div #mk-expired .mk-notice hidden role="alert" {
-                                    b.mk-notice__title { (expired_icon()) "This payment code has run out" }
-                                    p { "Monero's price keeps moving, so each code only lasts a little while. Please don't send to the old one. Refresh for a new code: you'll still pay " (util::aud(order.total_cents)) " AUD, but the amount of Monero may change." }
-                                    a #mk-refresh .btn .btn--accent .btn--with-icon href={ (base) "?method=monero" } { (refresh_icon()) span { "Refresh payment code" } }
-                                }
-                                form.alt method="post" action={ (base) "/claim" } {
-                                    input type="hidden" name="method" value="monero";
-                                    span { "Paid from a wallet that can't scan this, or something went wrong?" }
-                                    button.btn.btn--tiny.btn--ghost type="submit" { "I've paid" }
-                                }
-                            }
-                            MoneroState::NoPrice | MoneroState::Unavailable | MoneroState::NotStarted => {
-                                div.mk-error role="alert" {
-                                    @if matches!(state, MoneroState::NoPrice) {
-                                        b { "Monero can't be priced in Australian dollars right now" }
-                                        p { "The payment service couldn't get an AUD price, so it can't tell you how much Monero to send. Rachel has been told." }
-                                    } @else {
-                                        b { "Monero payments aren't working right now" }
-                                        p { "The payment service couldn't be reached. Rachel has been told." }
-                                    }
-                                    p { @if bank.is_some() { "You can pay by PayID or bank transfer now, or try Monero again a little later." } @else { "Please try again a little later." } }
-                                    div.mk-error__actions {
-                                        @if bank.is_some() { a.btn.btn--accent href={ (base) "?method=bank" } { "Pay by PayID or bank" } }
-                                        a.btn.btn--ghost href={ (base) "?method=monero" } { "Try Monero again" }
-                                    }
-                                }
-                            }
-                        }
+                        (monero_panel(order, state, *bank))
                     }
                     (_, _, Some(b)) => {
                         p.step-label { i { @if both { "2" } @else { "1" } } "Transfer from your bank app" }
@@ -486,6 +444,98 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
         script src=(assets::url("js/pay.js")) {}
     };
     page(p)
+}
+
+/// The Monero step, as a page load shows it and as /pay/{token}/panel returns
+/// it for js/pay.js to swap in.
+pub fn monero_panel(order: &Order, state: &MoneroState, bank: Option<&config::Bank>) -> Markup {
+    let base = format!("/pay/{}", order.pay_token);
+    let step = if bank.is_some() { "2" } else { "1" };
+    let poll = match state {
+        MoneroState::Checkout { .. }
+        | MoneroState::RanOut
+        | MoneroState::PartPaid
+        | MoneroState::Unknown => Some(format!("{base}/status")),
+        _ => None,
+    };
+    let claim = html! {
+        form.alt method="post" action={ (base) "/claim" } {
+            input type="hidden" name="method" value="monero";
+            span { "Paid from a wallet that can't scan this, or something went wrong?" }
+            button.btn.btn--tiny.btn--ghost type="submit" { "I've paid" }
+        }
+    };
+    let ran_out = |unknown: bool| {
+        html! {
+            div #mk-expired .mk-notice role="alert" {
+                b.mk-notice__title { (expired_icon()) "This payment code has run out" }
+                p { "Monero's price keeps moving, so each code only lasts a little while. Please don't send to the old one. Refresh for a new code: you'll still pay " (util::aud(order.total_cents)) " AUD, but the amount of Monero may change." }
+                form method="post" action={ (base) "/new-code" } {
+                    button #mk-refresh .btn .btn--accent .btn--with-icon type="submit" { (refresh_icon()) span { "Refresh payment code" } }
+                }
+                @if unknown {
+                    p.mk-notice__aside { "Already sent some of it? Please don't send it again. Reply to Rachel's email and she'll sort it out." }
+                }
+            }
+        }
+    };
+    html! {
+        div #mk-panel data-poll=[poll] {
+            @if !matches!(state, MoneroState::NoPrice | MoneroState::Unavailable | MoneroState::NotStarted) {
+                p.step-label { i { (step) } "Send the Monero" }
+            }
+            @match state {
+                MoneroState::Checkout { mk, cfg, layout, seen } => {
+                    div #mk-seen .mk-notice .mk-notice--seen hidden[!*seen] role="status" {
+                        b.mk-notice__title { (seen_icon()) "We've seen your payment" }
+                        p { "It's waiting for confirmations on the Monero network. You don't need to pay again. This page moves on by itself." }
+                    }
+                    // Monokulo's checkout in a plain frame, sized to the store's
+                    // default layout (css/style.css) until it reports its own
+                    // height. js/pay.js follows the status the frame posts, and
+                    // swaps in data-panel once the code is over.
+                    div #mk-checkout .mk-mount data-panel={ (base) "/panel?over=" (mk.mk_order_id) } {
+                        iframe class=(format!("mk-frame mk-frame--{}", layout.unwrap_or("detailed")))
+                            title="Monero payment"
+                            src={ (cfg.checkout_url(&mk.mk_order_id)) "?theme=light" }
+                            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+                            allow="camera"
+                            referrerpolicy="strict-origin" {}
+                    }
+                    p.embed-tag {
+                        "Monokulo's checkout. This page moves on by itself once the payment is seen. If it doesn't appear, "
+                        a href=(cfg.checkout_url(&mk.mk_order_id)) target="_blank" rel="noopener" { "open it on Monokulo" } "."
+                    }
+                    (claim)
+                }
+                MoneroState::RanOut => { (ran_out(false)) (claim) }
+                MoneroState::Unknown => { (ran_out(true)) (claim) }
+                MoneroState::PartPaid => {
+                    div #mk-part-paid .mk-notice role="alert" {
+                        b.mk-notice__title { (expired_icon()) "Part of your payment arrived" }
+                        p { "This code ran out before the rest came through. Please don't send any more for now. Reply to Rachel's email and she'll sort it out." }
+                    }
+                    (claim)
+                }
+                MoneroState::NoPrice | MoneroState::Unavailable | MoneroState::NotStarted => {
+                    div.mk-error role="alert" {
+                        @if matches!(state, MoneroState::NoPrice) {
+                            b { "Monero can't be priced in Australian dollars right now" }
+                            p { "The payment service couldn't get an AUD price, so it can't tell you how much Monero to send. Rachel has been told." }
+                        } @else {
+                            b { "Monero payments aren't working right now" }
+                            p { "The payment service couldn't be reached. Rachel has been told." }
+                        }
+                        p { @if bank.is_some() { "You can pay by PayID or bank transfer now, or try Monero again a little later." } @else { "Please try again a little later." } }
+                        div.mk-error__actions {
+                            @if bank.is_some() { a.btn.btn--accent href={ (base) "?method=bank" } { "Pay by PayID or bank" } }
+                            a.btn.btn--ghost href={ (base) "?method=monero" } { "Try Monero again" }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn outcome(mark: Markup, waiting: bool, title: &str, text: &str) -> Markup {
