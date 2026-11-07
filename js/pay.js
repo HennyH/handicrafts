@@ -20,6 +20,11 @@
     return false;
   }
 
+  // The frame is cross-origin, so its content can't be measured. The shop asks
+  // Monokulo which layout the store's default is and sizes the frame to it, the
+  // same heights Monokulo's own library uses for each layout.
+  const HEIGHTS = { tiny: "152px", compact: "380px", detailed: "880px" };
+
   const cfg = window.PAY_MONOKULO;
   const mount = document.querySelector("#mk-checkout");
   if (cfg && mount && window.Monokulo) {
@@ -29,6 +34,7 @@
         publicKey: cfg.publicKey,
         theme: "light",
         width: "100%",
+        height: HEIGHTS[cfg.layout],
         // A hint only: the order is marked paid by the signed webhook, so
         // ask the shop rather than trusting the browser.
         onPaid: () => setTimeout(check, 1500),

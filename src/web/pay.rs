@@ -74,13 +74,21 @@ pub async fn page(
             Err(state) => failure = Some(state),
         }
     }
+    let layout = match (&mk_row, &monokulo) {
+        (Some(mk), Some(c)) => c.checkout_layout(&mk.mk_order_id).await,
+        _ => None,
+    };
     let view = match order.status {
         Status::New => PayView::NotInvoiced,
         Status::Rejected => PayView::Cancelled,
         s if checkout::paid_status(s) => PayView::Paid,
         _ => {
             let monero = monokulo.as_ref().map(|c| match (&mk_row, failure) {
-                (Some(mk), _) => MoneroState::Checkout { mk, cfg: c.cfg() },
+                (Some(mk), _) => MoneroState::Checkout {
+                    mk,
+                    cfg: c.cfg(),
+                    layout,
+                },
                 (None, Some(f)) => f,
                 // Bank chosen: Monero is offered but not started.
                 (None, None) => MoneroState::NotStarted,
