@@ -197,45 +197,6 @@ async fn ensure_monokulo_order(
     }
 }
 
-/// The framed Monero payment card (see `checkout::monero_card`): read the
-/// order back from Monokulo and draw it. Only for an order still awaiting
-/// payment; the parent page moves on by itself when it is paid.
-pub async fn monero_card(axum::extract::State(app): State, Path(token): Path<String>) -> Response {
-    use checkout::CardState;
-    // This page is framed inside the pay page, so every outcome here is a
-    // small card, never a whole shop page.
-    let gone = || {
-        html(
-            StatusCode::NOT_FOUND,
-            checkout::monero_card(CardState::Gone, "", util::now()),
-        )
-    };
-    if token.len() != 24 || !token.chars().all(|c| c.is_ascii_alphanumeric()) {
-        return gone();
-    }
-    let order = match app.db.order_by_token(token).await {
-        Ok(Some(o)) => o,
-        Ok(None) => return gone(),
-        Err(e) => {
-            eprintln!("handicrafts: {e}");
-            return ok(checkout::monero_card(CardState::Retry, "", util::now()));
-        }
-    };
-    let (Some(client), Ok(Some(mk))) = (app.monokulo(), app.db.monokulo_order(order.id).await)
-    else {
-        return gone();
-    };
-    let url = format!("{}/checkout/{}", client.cfg().url, mk.mk_order_id);
-    let page = match client.get_order(&mk.mk_order_id).await {
-        Ok(d) => checkout::monero_card(CardState::Live(&d), &url, util::now()),
-        Err(e) => {
-            eprintln!("handicrafts: {e}");
-            checkout::monero_card(CardState::Retry, &url, util::now())
-        }
-    };
-    ok(page)
-}
-
 /// `{"status":"invoiced"}` for js/pay.js, which reloads the page once the
 /// order is paid.
 pub async fn status(axum::extract::State(app): State, Path(token): Path<String>) -> Response {

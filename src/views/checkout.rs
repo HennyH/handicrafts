@@ -291,6 +291,15 @@ pub enum PayView<'a> {
 
 pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
     let base = format!("/pay/{}", order.pay_token);
+    // Monokulo's checkout, mounted by js/pay.js: its script and the order to show.
+    let monokulo_script = match &view {
+        PayView::Choose {
+            method: Method::Monero,
+            monero: Some(MoneroState::Checkout { mk, cfg }),
+            ..
+        } => Some((mk.mk_order_id.clone(), (*cfg).clone())),
+        _ => None,
+    };
     let panel = match &view {
         PayView::NotInvoiced => outcome(
             html! { img src="/assets/doodles/envelope-seal.svg" alt="" style="width:46px"; },
@@ -360,10 +369,13 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                         @match state {
                             MoneroState::Checkout { mk, cfg } => {
                                 p.step-label { i { (step) } "Send the Monero" }
-                                div.mk-mount data-poll=(format!("{base}/status")) {
-                                    iframe.mk-frame src={ (base) "/monero" } title="Monero payment details" loading="eager" {}
+                                div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
+                                    p.mk-loading {
+                                        "Loading the Monero checkout… If it doesn't appear, "
+                                        a href={ (cfg.url) "/checkout/" (mk.mk_order_id) } target="_blank" rel="noopener" { "open it on Monokulo" } "."
+                                    }
                                 }
-                                p.embed-tag { "Payment details come from Monokulo. This page moves on by itself once the payment is seen. " a href={ (cfg.url) "/checkout/" (mk.mk_order_id) } target="_blank" rel="noopener" { "Open on Monokulo" } "." }
+                                p.embed-tag { "Monokulo's checkout. This page moves on by itself once the payment is seen." }
                                 form.alt method="post" action={ (base) "/claim" } {
                                     input type="hidden" name="method" value="monero";
                                     span { "Paid from a wallet that can't scan this, or something went wrong?" }
@@ -436,6 +448,15 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
         script src=(assets::url("js/fixi-forms.js")) {}
         script src=(assets::url("js/cart.js")) {}
         script src=(assets::url("js/main.js")) {}
+        @if let Some((mk_id, cfg)) = &monokulo_script {
+            script src={ (cfg.url) "/static/monokulo-client.js" } {}
+            script {
+                (PreEscaped(format!(
+                    "window.PAY_MONOKULO = {};",
+                    serde_json::json!({ "orderId": mk_id, "monokulo": cfg.url, "publicKey": cfg.public_key })
+                )))
+            }
+        }
         script src=(assets::url("js/pay.js")) {}
     };
     page(p)
@@ -516,121 +537,5 @@ mod tests {
             "assets/products/tote/gallery_1.webp"
         );
         assert_eq!(to_webp("assets/products/x.svg"), "assets/products/x.svg");
-    }
-}
-
-/// What the framed payment card shows.
-pub enum CardState<'a> {
-    Live(&'a crate::monokulo::MkDetail),
-    /// Monokulo couldn't be read just now; the card tries again by itself.
-    Retry,
-    /// The pay link doesn't match an order that can be paid by Monero. Shown
-    /// instead of a whole shop page, which would be framed inside the card.
-    Gone,
-}
-
-/// The Monero payment card the pay page frames: amount, address, QR code and
-/// progress, drawn from Monokulo's API. It refreshes itself (meta refresh), so
-/// it needs no script.
-pub fn monero_card(state: CardState, checkout_url: &str, now: i64) -> Markup {
-    let mut refresh = 5;
-    let body = match state {
-        CardState::Retry => html! {
-            div.mkc__state.mkc__state--warn {
-                b { "Having trouble reaching the payment service" }
-                span { "Trying again in a moment." }
-            }
-            p.mkc__fine { a href=(checkout_url) target="_blank" rel="noopener" { "Open the payment on Monokulo instead" } }
-        },
-        CardState::Gone => {
-            refresh = 0;
-            html! {
-                div.mkc__state.mkc__state--warn {
-                    b { "This payment link doesn't work" }
-                    span { "It may have expired. Reload the page, or write to hello@rachelshandicrafts.com." }
-                }
-            }
-        }
-        CardState::Live(d) => {
-            let amount = crate::monokulo::xmr(d.xmr_amount_piconero);
-            let left = d.expires_at - now;
-            let (class, title, note): (&str, String, String) = match d.status.as_str() {
-                "paid" | "overpaid" => ("ok", "Payment received".into(), "Thank you! This page will update in a moment.".into()),
-                "unconfirmed" | "confirming" => ("wait", "Payment seen".into(), format!(
-                    "Waiting for the network to confirm it{}.",
-                    if d.confirmations_required > 0 { format!(" ({} of {})", d.confirmations, d.confirmations_required) } else { String::new() }
-                )),
-                "partial" => ("warn", "Part of the payment has arrived".into(), format!(
-                    "{} XMR received so far. Please send the rest to the same address.",
-                    crate::monokulo::xmr(d.amount_received_piconero)
-                )),
-                "expired" => ("warn", "This price has expired".into(), "Reload this page to get a fresh price. If you've already sent it, press \"I've paid\" below.".into()),
-                "cancelled" => ("warn", "This payment was cancelled".into(), "Reload this page to start again.".into()),
-                _ => ("wait", "Waiting for your payment".into(), if left > 0 {
-                    format!("This price is held for about {} more minute{}.", (left + 59) / 60, if left <= 60 { "" } else { "s" })
-                } else {
-                    "Checking…".into()
-                }),
-            };
-            if d.is_final {
-                refresh = 30;
-            }
-            let live = !d.is_final && !matches!(d.status.as_str(), "paid" | "overpaid");
-            let uri = format!("monero:{}?tx_amount={}", d.address, amount);
-            let qr = if live && !d.address.is_empty() {
-                qrcode::QrCode::new(uri.as_bytes()).ok().map(|code| {
-                    PreEscaped(
-                        code.render::<qrcode::render::svg::Color>()
-                            .quiet_zone(true)
-                            .min_dimensions(176, 176)
-                            .dark_color(qrcode::render::svg::Color("#29343a"))
-                            .light_color(qrcode::render::svg::Color("#ffffff"))
-                            .build()
-                            .replacen("<?xml version=\"1.0\" standalone=\"yes\"?>", "", 1),
-                    )
-                })
-            } else {
-                None
-            };
-            html! {
-                @if live && !d.address.is_empty() {
-                    div.mkc__card {
-                        div.mkc__main {
-                            p.mkc__label { "Send exactly" }
-                            p.mkc__amount { b { (amount) } " XMR" }
-                            p.mkc__addr { (d.address) }
-                        }
-                        @if let Some(svg) = qr {
-                            a.mkc__qr href=(uri) title="Click to enlarge" aria-label="Enlarge the QR code" { (svg) }
-                        }
-                        div class={ "mkc__foot mkc__foot--" (class) } {
-                            span { b { (title) } " " (note) }
-                            a href=(uri) { "Open wallet" }
-                        }
-                    }
-                } @else {
-                    div class={ "mkc__state mkc__state--" (class) } {
-                        b { (title) }
-                        span { (note) }
-                    }
-                }
-            }
-        }
-    };
-    html! {
-        (maud::DOCTYPE)
-        html lang="en" {
-            head {
-                meta charset="UTF-8";
-                meta name="viewport" content="width=device-width, initial-scale=1.0";
-                meta name="robots" content="noindex";
-                meta name="referrer" content="no-referrer";
-                @if refresh > 0 { meta http-equiv="refresh" content=(refresh); }
-                title { "Monero payment" }
-                link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;700&family=IBM+Plex+Mono:wght@500&display=swap";
-                link rel="stylesheet" href=(assets::url("css/style.css"));
-            }
-            body.mkc { (body) }
-        }
     }
 }
