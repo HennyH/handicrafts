@@ -6,7 +6,9 @@
 # OpenWrt release and CPU architecture in the matrix, then the x86_64 package
 # installed and run inside OpenWrt's own image (scripts/test-openwrt.sh).
 #
-# Pushes to master also publish the signed apk repository on GitHub Pages.
+# Pushes to master also publish the signed apk repository on GitHub Pages. A
+# version tag (v<Cargo.toml version>) also puts the packages on the
+# repository's Releases page.
 # Pages used to serve the shop itself: the first such push replaces the old
 # static shop on Pages with the repository, so www.rachelshandicrafts.com
 # should point at the router (and the Pages custom domain be removed under
@@ -22,6 +24,7 @@ name: release
 on:
   push:
     branches: [master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -110,6 +113,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.rust_target }}
+      - name: Check the tag names this version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "tag $GITHUB_REF_NAME doesn't match Cargo.toml's version $version"; exit 1; }
       - uses: Swatinem/rust-cache@v2
         with:
           key: openwrt-${{ matrix.release }}-${{ matrix.arch }}
@@ -216,3 +224,54 @@ jobs:
           path: site
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  github-release:
+    # A version tag's packages as a GitHub release: one apk per architecture,
+    # named for it, with their checksums and the signing key.
+    name: github release
+    needs: install-test
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: handicrafts-openwrt-*
+          path: artifacts
+      - name: Lay out the files
+        run: |
+          mkdir -p dist
+          for d in artifacts/handicrafts-openwrt-*; do
+            name=${d#artifacts/handicrafts-openwrt-}
+            release=${name%%-*}
+            arch=${name#*-}
+            for f in "$d"/handicrafts-*.apk; do
+              cp "$f" "dist/$(basename "${f%.apk}")-openwrt-$release-$arch.apk"
+            done
+          done
+          cp openwrt/keys/monokulo.pem dist/
+          (cd dist && sha256sum ./* > SHA256SUMS)
+          ls -l dist
+      - name: Write the notes
+        run: |
+          base="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          {
+            echo "OpenWrt packages for the shop, signed with Monokulo's key (\`monokulo.pem\`)."
+            echo
+            echo "On the router (OpenWrt 25.12, GL.iNet Flint 2 is \`aarch64_cortex-a53\`):"
+            echo
+            echo '```sh'
+            echo "scp handicrafts-*.apk root@router:/tmp/ && ssh root@router apk add /tmp/handicrafts-*.apk"
+            echo '```'
+            echo
+            echo "Or \`apk upgrade\` from the [package repository]($base)."
+            echo
+          } > notes.md
+      - name: Create the release
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes --verify-tag
+          echo "Released [$GITHUB_REF_NAME](https://github.com/$GITHUB_REPOSITORY/releases/tag/$GITHUB_REF_NAME)." >> "$GITHUB_STEP_SUMMARY"
