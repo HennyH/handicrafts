@@ -22,6 +22,15 @@ pub struct MkOrder {
     pub status: String,
 }
 
+/// A Monokulo order as Monokulo has it right now.
+#[derive(Debug, Clone, Deserialize)]
+pub struct OrderNow {
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub amount_received_piconero: u64,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CreateError {
     /// Monokulo can't price the order: no AUD rate, unknown currency.
@@ -233,6 +242,26 @@ impl Client {
 
     pub fn cfg(&self) -> &config::Monokulo {
         &self.cfg
+    }
+
+    /// Read a Monokulo order as it is right now. Webhooks don't say how much
+    /// has arrived, and `order.expired` replaces the `partial` status we held.
+    pub async fn order_now(&self, mk_order_id: &str) -> Result<OrderNow, String> {
+        let res = self
+            .http
+            .get(format!("{}/orders/{}", self.cfg.api, mk_order_id))
+            .bearer_auth(&self.cfg.secret_key)
+            .header("Monokulo-Client", CLIENT)
+            .timeout(std::time::Duration::from_secs(4))
+            .send()
+            .await
+            .map_err(|e| format!("couldn't reach Monokulo: {e}"))?;
+        if !res.status().is_success() {
+            return Err(problem(res).await.1);
+        }
+        res.json()
+            .await
+            .map_err(|e| format!("Monokulo's answer didn't make sense: {e}"))
     }
 
     /// Make a Monokulo order for `amount_cents` AUD. The idempotency key

@@ -59,8 +59,6 @@ pub async fn page(
     };
     let requested = Method::parse(q.get("method").map(String::as_str));
 
-    let mut mk_row: Option<MonokuloOrder> = None;
-    let mut failure: Option<MoneroState<'static>> = None;
     let bank = app.cfg.bank.any().then_some(&app.cfg.bank);
     let monokulo = app.monokulo();
     let method = match (requested, &monokulo, bank) {
@@ -68,31 +66,22 @@ pub async fn page(
         (_, Some(_), _) => Method::Monero,
         _ => Method::Bank,
     };
-    if order.status == Status::Invoiced && method == Method::Monero {
-        match ensure_monokulo_order(&app, &order).await {
-            Ok(mk) => mk_row = Some(mk),
-            Err(state) => failure = Some(state),
-        }
-    }
-    let layout = match (&mk_row, &monokulo) {
-        (Some(mk), Some(c)) => c.checkout_layout(&mk.mk_order_id).await,
-        _ => None,
-    };
     let view = match order.status {
         Status::New => PayView::NotInvoiced,
         Status::Rejected => PayView::Cancelled,
         s if checkout::paid_status(s) => PayView::Paid,
         _ => {
-            let monero = monokulo.as_ref().map(|c| match (&mk_row, failure) {
-                (Some(mk), _) => MoneroState::Checkout {
-                    mk,
-                    cfg: c.cfg(),
-                    layout,
-                },
-                (None, Some(f)) => f,
+            let monero = match &monokulo {
+                None => None,
                 // Bank chosen: Monero is offered but not started.
-                (None, None) => MoneroState::NotStarted,
-            });
+                Some(_) if method != Method::Monero || order.status != Status::Invoiced => {
+                    Some(MoneroState::NotStarted)
+                }
+                Some(_) => {
+                    let state = monero_state(&app, &order, None).await;
+                    Some(after_failed_refresh(state, &q))
+                }
+            };
             PayView::Choose {
                 method,
                 monero,
@@ -103,24 +92,151 @@ pub async fn page(
     ok(checkout::pay_page(&order, &lines, view))
 }
 
-/// The Monokulo order to show for this order: the current one if its price
-/// still holds, otherwise a fresh one. An error says what to show instead.
-async fn ensure_monokulo_order(
-    app: &Arc<App>,
-    order: &Order,
-) -> Result<MonokuloOrder, MoneroState<'static>> {
-    let client = app.monokulo().ok_or(MoneroState::Unavailable)?;
+/// Where this order's payment code stands. Never makes a code, so a page or a
+/// tab left open can ask as often as it likes: only the first visit and the
+/// customer pressing Refresh make one.
+enum Code {
+    /// None yet.
+    None,
+    Live(MonokuloOrder),
+    /// Money is on its way to it, so a new code would ask them to pay twice.
+    Seen(MonokuloOrder),
+    /// Over, with nothing received.
+    RanOut,
+    /// Over, with some of the money received.
+    PartPaid,
+    /// Over, but Monokulo can't say what it received.
+    Unknown,
+}
+
+async fn assess_code(app: &Arc<App>, order: &Order) -> Code {
+    let mk = match app.db.monokulo_order(order.id).await {
+        Ok(Some(mk)) if mk.amount_cents == order.total_cents => mk,
+        Ok(_) => return Code::None,
+        Err(e) => {
+            eprintln!("handicrafts: {e}");
+            return Code::Unknown;
+        }
+    };
     let now = util::now();
-    if let Ok(Some(mk)) = app.db.monokulo_order(order.id).await {
-        // Money is on its way to this one, whatever the time: a new code here
-        // would ask the customer to pay again.
-        let being_paid = matches!(mk.status.as_str(), "unconfirmed" | "confirming" | "partial");
-        let live = being_paid
-            || mk.expires_at > now + 60 && !matches!(mk.status.as_str(), "expired" | "cancelled");
-        if live && mk.amount_cents == order.total_cents {
-            return Ok(mk);
+    let status = mk.status.as_str();
+    if matches!(status, "unconfirmed" | "confirming") {
+        return Code::Seen(mk);
+    }
+    if mk.expires_at > now && !matches!(status, "expired" | "cancelled") {
+        return Code::Live(mk);
+    }
+    // Over as far as we know, so what to say depends on what has arrived.
+    let Some(client) = app.monokulo() else {
+        return Code::Unknown;
+    };
+    if app.monokulo_checks.blocked(&order.pay_token, now) {
+        return Code::Unknown;
+    }
+    app.monokulo_checks.hit(&order.pay_token, now);
+    match client.order_now(&mk.mk_order_id).await {
+        Ok(o) => match o.status.as_str() {
+            "paid" | "overpaid" | "unconfirmed" | "confirming" => Code::Seen(mk),
+            _ if o.amount_received_piconero > 0 => Code::PartPaid,
+            "expired" | "cancelled" => Code::RanOut,
+            _ => Code::Live(mk),
+        },
+        Err(e) => {
+            eprintln!("handicrafts: {e}");
+            Code::Unknown
         }
     }
+}
+
+/// What the Monero step shows. The one decision behind both a page load and
+/// the panel a tab swaps in, so the two can't disagree. `frame_over` is the
+/// Monokulo order an open tab's frame said is over: if we'd show that same
+/// frame again, the tab would only ask again, so say we can't tell instead.
+async fn monero_state(app: &Arc<App>, order: &Order, frame_over: Option<&str>) -> MoneroState {
+    let Some(client) = app.monokulo() else {
+        return MoneroState::Unavailable;
+    };
+    let (mk, seen) = match assess_code(app, order).await {
+        Code::None => match make_code(app, order).await {
+            Ok(mk) => (mk, false),
+            Err(state) => return state,
+        },
+        Code::Live(mk) => (mk, false),
+        Code::Seen(mk) => (mk, true),
+        Code::RanOut => return MoneroState::RanOut,
+        Code::PartPaid => return MoneroState::PartPaid,
+        Code::Unknown => return MoneroState::Unknown,
+    };
+    if frame_over == Some(mk.mk_order_id.as_str()) {
+        return MoneroState::Unknown;
+    }
+    let layout = client.checkout_layout(&mk.mk_order_id).await;
+    MoneroState::Checkout {
+        mk,
+        cfg: client.cfg().clone(),
+        layout,
+        seen,
+    }
+}
+
+/// Refresh couldn't make a code: say why, once, on the page it lands on.
+fn after_failed_refresh(state: MoneroState, q: &HashMap<String, String>) -> MoneroState {
+    match (&state, q.get("refresh").map(String::as_str)) {
+        (MoneroState::RanOut | MoneroState::Unknown, Some("no_price")) => MoneroState::NoPrice,
+        (MoneroState::RanOut | MoneroState::Unknown, Some("unavailable")) => {
+            MoneroState::Unavailable
+        }
+        _ => state,
+    }
+}
+
+/// The Monero step alone, for a tab whose frame said its code is over.
+pub async fn panel(
+    axum::extract::State(app): State,
+    Path(token): Path<String>,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
+    let order = match find(&app, &token).await {
+        Ok(o) => o,
+        Err(r) => return r,
+    };
+    if order.status != Status::Invoiced || app.monokulo().is_none() {
+        // Nothing to swap in: the tab reloads to whatever the page is now.
+        return StatusCode::CONFLICT.into_response();
+    }
+    let state = monero_state(&app, &order, q.get("over").map(String::as_str)).await;
+    let bank = app.cfg.bank.any().then_some(&app.cfg.bank);
+    ok(checkout::monero_panel(&order, &state, bank))
+}
+
+/// The Refresh button: the only thing that replaces a code. Looks again first,
+/// so a stale tab or a second press can't replace a live or part-paid one.
+pub async fn new_code(axum::extract::State(app): State, Path(token): Path<String>) -> Response {
+    let order = match find(&app, &token).await {
+        Ok(o) => o,
+        Err(r) => return r,
+    };
+    let back = format!("/pay/{token}?method=monero");
+    if order.status != Status::Invoiced || app.monokulo().is_none() {
+        return see_other(&back);
+    }
+    if matches!(
+        assess_code(&app, &order).await,
+        Code::None | Code::RanOut | Code::Unknown
+    ) {
+        match make_code(&app, &order).await {
+            Ok(_) => {}
+            Err(MoneroState::NoPrice) => return see_other(&format!("{back}&refresh=no_price")),
+            Err(_) => return see_other(&format!("{back}&refresh=unavailable")),
+        }
+    }
+    see_other(&back)
+}
+
+/// Make a new Monokulo order. An error says what to show instead.
+async fn make_code(app: &Arc<App>, order: &Order) -> Result<MonokuloOrder, MoneroState> {
+    let client = app.monokulo().ok_or(MoneroState::Unavailable)?;
+    let now = util::now();
     if app.monokulo_starts.blocked(&order.pay_token, now) {
         return Err(MoneroState::Unavailable);
     }

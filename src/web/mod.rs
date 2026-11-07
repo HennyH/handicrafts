@@ -44,6 +44,8 @@ pub struct App {
     pub admin_ok: std::sync::Mutex<Option<[u8; 32]>>,
     /// Monokulo order creation per pay link.
     pub monokulo_starts: Window,
+    /// Asking Monokulo about a code that has run out, per pay link.
+    pub monokulo_checks: Window,
 }
 
 pub type State = axum::extract::State<Arc<App>>;
@@ -64,6 +66,7 @@ impl App {
             admin_failures: Window::new(15 * 60, 5),
             admin_ok: Default::default(),
             monokulo_starts: Window::new(3600, 6),
+            monokulo_checks: Window::new(3600, 60),
         }
     }
 
@@ -132,6 +135,11 @@ pub fn router(app: Arc<App>) -> Router {
         )
         .route("/pay/{token}", get(pay::page))
         .route("/pay/{token}/status", get(pay::status))
+        .route("/pay/{token}/panel", get(pay::panel))
+        .route(
+            "/pay/{token}/new-code",
+            post(pay::new_code).layer(DefaultBodyLimit::max(4 * 1024)),
+        )
         .route(
             "/pay/{token}/claim",
             post(pay::claim).layer(DefaultBodyLimit::max(4 * 1024)),
