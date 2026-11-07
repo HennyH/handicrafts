@@ -320,7 +320,7 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
             method: Method::Monero,
             monero: Some(MoneroState::Checkout { mk, cfg }),
             ..
-        } => Some((mk.mk_order_id.clone(), (*cfg).clone())),
+        } => Some((*cfg).clone()),
         _ => None,
     };
     let panel = match &view {
@@ -392,7 +392,8 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                         @match state {
                             MoneroState::Checkout { mk, cfg } => {
                                 p.step-label { i { (step) } "Send the Monero" }
-                                div #mk-checkout .mk-mount data-poll=(format!("{base}/status")) {
+                                div #mk-checkout .mk-mount data-poll=(format!("{base}/status"))
+                                    data-order=(mk.mk_order_id) data-monokulo=(cfg.url) data-public-key=(cfg.public_key) {
                                     p.mk-loading {
                                         "Loading the Monero checkout… If it doesn't appear, "
                                         a href={ (cfg.url) "/checkout/" (mk.mk_order_id) } target="_blank" rel="noopener" { "open it on Monokulo" } "."
@@ -471,14 +472,8 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
         script src=(assets::url("js/fixi-forms.js")) {}
         script src=(assets::url("js/cart.js")) {}
         script src=(assets::url("js/main.js")) {}
-        @if let Some((mk_id, cfg)) = &monokulo_script {
+        @if let Some(cfg) = &monokulo_script {
             script src={ (cfg.url) "/static/monokulo-client.js" } {}
-            script {
-                (PreEscaped(format!(
-                    "window.PAY_MONOKULO = {};",
-                    serde_json::json!({ "orderId": mk_id, "monokulo": cfg.url, "publicKey": cfg.public_key })
-                )))
-            }
         }
         script src=(assets::url("js/pay.js")) {}
     };

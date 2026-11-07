@@ -20,9 +20,13 @@
     return false;
   }
 
-  const cfg = window.PAY_MONOKULO;
   const mount = document.querySelector("#mk-checkout");
-  if (cfg && mount && window.Monokulo) {
+  const cfg = mount && {
+    orderId: mount.getAttribute("data-order"),
+    monokulo: mount.getAttribute("data-monokulo"),
+    publicKey: mount.getAttribute("data-public-key"),
+  };
+  if (cfg && cfg.orderId && window.Monokulo) {
     try {
       Monokulo.mount(mount, cfg.orderId, {
         monokulo: cfg.monokulo,
