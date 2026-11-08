@@ -377,6 +377,7 @@ pub fn pay_page(order: &Order, lines: &[PricedLine], view: PayView) -> Markup {
                     div.methods {
                         a.method.is-off[!monero_ok] href={ (base) "?method=monero" } aria-current=(*method == Method::Monero) {
                             span.badge.badge--mustard { @if monero_ok { "Preferred" } @else { "Unavailable" } }
+                            span.method__radio aria-hidden="true" {}
                             span.method__icon { img src="/assets/doodles/monero.svg" alt=""; }
                             b { "Monero" }
                             small { "Private, and confirmed automatically" }

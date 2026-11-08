@@ -270,14 +270,12 @@ impl Client {
         &self,
         amount_cents: i64,
         merchant_order_id: &str,
-        description: &str,
         idempotency_key: &str,
     ) -> Result<MkOrder, CreateError> {
         let body = serde_json::json!({
             "amount": crate::util::decimal(amount_cents),
             "currency": "AUD",
             "merchant_order_id": merchant_order_id,
-            "description": crate::util::clip(description, 140),
             "idempotency_key": idempotency_key,
             "show_merchant_order_id": true,
         });
